@@ -15,5 +15,9 @@ def make_env(env_id,
     env = make_atari_env(env_id, n_envs, monitor_dir = monitor_dir, vec_env_cls = vec_env_cls, wrapper_kwargs = wrapper_kwargs)
     env = VecFrameStack(env, 4)
     env = VecTransposeImage(env)
+<<<<<<< HEAD
     env = VecNormalize(env, norm_reward=False)
+=======
+    env = VecNormalize(env, norm_reward=False, norm_obs=False)
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
     return env

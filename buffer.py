@@ -197,7 +197,6 @@ class RolloutStorage(BaseBuffer):
             else:
                 next_non_terminal = 1.0 - self.masks[step + 1]
                 next_value = self.values[step + 1]
-
             delta = self.rewards[step] + self.gamma * next_value * next_non_terminal - self.values[step]
             last_gae_lam = delta + self.gamma * self.gae_lam * next_non_terminal * last_gae_lam
             self.advantages[step] = last_gae_lam

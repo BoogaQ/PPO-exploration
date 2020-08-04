@@ -1,1 +1,662 @@
 Logging to ./logs
+<<<<<<< HEAD
+=======
+--------------------------------------
+| Progress                | 1.15%    |
+| rollout/                |          |
+|    ep_len_mean          | 660      |
+|    ep_rew_mean          | 0.96     |
+| time/                   |          |
+|    total timesteps      | 12800    |
+|    total_time           | 64.9     |
+| train/                  |          |
+|    entropy_loss         | -1.1     |
+|    policy_gradient_loss | -0.00184 |
+|    total_loss           | 0.0386   |
+|    value_loss           | 0.0514   |
+--------------------------------------
+--------------------------------------
+| Progress                | 2.43%    |
+| rollout/                |          |
+|    ep_len_mean          | 733      |
+|    ep_rew_mean          | 1.43     |
+| time/                   |          |
+|    total timesteps      | 25600    |
+|    total_time           | 143      |
+| train/                  |          |
+|    entropy_loss         | -1.11    |
+|    policy_gradient_loss | -0.00178 |
+|    total_loss           | 0.0351   |
+|    value_loss           | 0.048    |
+--------------------------------------
+--------------------------------------
+| Progress                | 3.71%    |
+| rollout/                |          |
+|    ep_len_mean          | 789      |
+|    ep_rew_mean          | 1.7      |
+| time/                   |          |
+|    total timesteps      | 38400    |
+|    total_time           | 224      |
+| train/                  |          |
+|    entropy_loss         | -1.18    |
+|    policy_gradient_loss | -0.00594 |
+|    total_loss           | 0.0246   |
+|    value_loss           | 0.0423   |
+--------------------------------------
+--------------------------------------
+| Progress                | 4.99%    |
+| rollout/                |          |
+|    ep_len_mean          | 902      |
+|    ep_rew_mean          | 2.41     |
+| time/                   |          |
+|    total timesteps      | 51200    |
+|    total_time           | 315      |
+| train/                  |          |
+|    entropy_loss         | -1.07    |
+|    policy_gradient_loss | 0.00094  |
+|    total_loss           | 0.0407   |
+|    value_loss           | 0.0505   |
+--------------------------------------
+--------------------------------------
+| Progress                | 6.27%    |
+| rollout/                |          |
+|    ep_len_mean          | 989      |
+|    ep_rew_mean          | 3.06     |
+| time/                   |          |
+|    total timesteps      | 64000    |
+|    total_time           | 404      |
+| train/                  |          |
+|    entropy_loss         | -1.16    |
+|    policy_gradient_loss | -0.00521 |
+|    total_loss           | 0.0584   |
+|    value_loss           | 0.0752   |
+--------------------------------------
+--------------------------------------
+| Progress                | 7.55%    |
+| rollout/                |          |
+|    ep_len_mean          | 937      |
+|    ep_rew_mean          | 2.75     |
+| time/                   |          |
+|    total timesteps      | 76800    |
+|    total_time           | 488      |
+| train/                  |          |
+|    entropy_loss         | -1.21    |
+|    policy_gradient_loss | -0.00399 |
+|    total_loss           | 0.0113   |
+|    value_loss           | 0.0274   |
+--------------------------------------
+--------------------------------------
+| Progress                | 8.83%    |
+| rollout/                |          |
+|    ep_len_mean          | 898      |
+|    ep_rew_mean          | 2.5      |
+| time/                   |          |
+|    total timesteps      | 89600    |
+|    total_time           | 579      |
+| train/                  |          |
+|    entropy_loss         | -1.13    |
+|    policy_gradient_loss | -0.00312 |
+|    total_loss           | 0.0262   |
+|    value_loss           | 0.0406   |
+--------------------------------------
+--------------------------------------
+| Progress                | 10.11%   |
+| rollout/                |          |
+|    ep_len_mean          | 960      |
+|    ep_rew_mean          | 3        |
+| time/                   |          |
+|    total timesteps      | 102400   |
+|    total_time           | 665      |
+| train/                  |          |
+|    entropy_loss         | -1.19    |
+|    policy_gradient_loss | -0.0012  |
+|    total_loss           | 0.0704   |
+|    value_loss           | 0.0835   |
+--------------------------------------
+--------------------------------------
+| Progress                | 11.39%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.01e+03 |
+|    ep_rew_mean          | 3.49     |
+| time/                   |          |
+|    total timesteps      | 115200   |
+|    total_time           | 747      |
+| train/                  |          |
+|    entropy_loss         | -1.14    |
+|    policy_gradient_loss | -0.00495 |
+|    total_loss           | 0.0271   |
+|    value_loss           | 0.0435   |
+--------------------------------------
+--------------------------------------
+| Progress                | 12.67%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.07e+03 |
+|    ep_rew_mean          | 3.83     |
+| time/                   |          |
+|    total timesteps      | 128000   |
+|    total_time           | 829      |
+| train/                  |          |
+|    entropy_loss         | -1.14    |
+|    policy_gradient_loss | -0.0081  |
+|    total_loss           | 0.0421   |
+|    value_loss           | 0.0616   |
+--------------------------------------
+--------------------------------------
+| Progress                | 13.95%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.14e+03 |
+|    ep_rew_mean          | 4.41     |
+| time/                   |          |
+|    total timesteps      | 140800   |
+|    total_time           | 914      |
+| train/                  |          |
+|    entropy_loss         | -1.21    |
+|    policy_gradient_loss | -0.00794 |
+|    total_loss           | 0.131    |
+|    value_loss           | 0.151    |
+--------------------------------------
+--------------------------------------
+| Progress                | 15.23%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.14e+03 |
+|    ep_rew_mean          | 4.52     |
+| time/                   |          |
+|    total timesteps      | 153600   |
+|    total_time           | 998      |
+| train/                  |          |
+|    entropy_loss         | -1.21    |
+|    policy_gradient_loss | -0.00476 |
+|    total_loss           | 0.0793   |
+|    value_loss           | 0.0962   |
+--------------------------------------
+--------------------------------------
+| Progress                | 16.51%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.18e+03 |
+|    ep_rew_mean          | 4.91     |
+| time/                   |          |
+|    total timesteps      | 166400   |
+|    total_time           | 1.08e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.2     |
+|    policy_gradient_loss | -0.00398 |
+|    total_loss           | 0.0439   |
+|    value_loss           | 0.0599   |
+--------------------------------------
+--------------------------------------
+| Progress                | 17.79%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.26e+03 |
+|    ep_rew_mean          | 5.29     |
+| time/                   |          |
+|    total timesteps      | 179200   |
+|    total_time           | 1.16e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.21    |
+|    policy_gradient_loss | -0.00268 |
+|    total_loss           | 0.0767   |
+|    value_loss           | 0.0914   |
+--------------------------------------
+--------------------------------------
+| Progress                | 19.07%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.21e+03 |
+|    ep_rew_mean          | 5.32     |
+| time/                   |          |
+|    total timesteps      | 192000   |
+|    total_time           | 1.25e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.12    |
+|    policy_gradient_loss | -0.0072  |
+|    total_loss           | 0.0335   |
+|    value_loss           | 0.0518   |
+--------------------------------------
+--------------------------------------
+| Progress                | 20.35%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.18e+03 |
+|    ep_rew_mean          | 5.11     |
+| time/                   |          |
+|    total timesteps      | 204800   |
+|    total_time           | 1.33e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.15    |
+|    policy_gradient_loss | -0.00651 |
+|    total_loss           | 0.0559   |
+|    value_loss           | 0.0739   |
+--------------------------------------
+--------------------------------------
+| Progress                | 21.63%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.16e+03 |
+|    ep_rew_mean          | 4.87     |
+| time/                   |          |
+|    total timesteps      | 217600   |
+|    total_time           | 1.4e+03  |
+| train/                  |          |
+|    entropy_loss         | -1.05    |
+|    policy_gradient_loss | -0.00616 |
+|    total_loss           | 0.0455   |
+|    value_loss           | 0.0622   |
+--------------------------------------
+--------------------------------------
+| Progress                | 22.91%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.24e+03 |
+|    ep_rew_mean          | 5.6      |
+| time/                   |          |
+|    total timesteps      | 230400   |
+|    total_time           | 1.48e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.11    |
+|    policy_gradient_loss | -0.00054 |
+|    total_loss           | 0.0342   |
+|    value_loss           | 0.0458   |
+--------------------------------------
+--------------------------------------
+| Progress                | 24.19%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.28e+03 |
+|    ep_rew_mean          | 6.04     |
+| time/                   |          |
+|    total timesteps      | 243200   |
+|    total_time           | 1.56e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.13    |
+|    policy_gradient_loss | -0.00528 |
+|    total_loss           | 0.0334   |
+|    value_loss           | 0.05     |
+--------------------------------------
+--------------------------------------
+| Progress                | 25.47%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.33e+03 |
+|    ep_rew_mean          | 6.24     |
+| time/                   |          |
+|    total timesteps      | 256000   |
+|    total_time           | 1.63e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.11    |
+|    policy_gradient_loss | -0.00605 |
+|    total_loss           | 0.0342   |
+|    value_loss           | 0.0513   |
+--------------------------------------
+--------------------------------------
+| Progress                | 26.75%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.36e+03 |
+|    ep_rew_mean          | 6.26     |
+| time/                   |          |
+|    total timesteps      | 268800   |
+|    total_time           | 1.71e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.07    |
+|    policy_gradient_loss | -0.00268 |
+|    total_loss           | 0.0675   |
+|    value_loss           | 0.0809   |
+--------------------------------------
+--------------------------------------
+| Progress                | 28.03%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.42e+03 |
+|    ep_rew_mean          | 6.72     |
+| time/                   |          |
+|    total timesteps      | 281600   |
+|    total_time           | 1.79e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.1     |
+|    policy_gradient_loss | 0.000941 |
+|    total_loss           | 0.0645   |
+|    value_loss           | 0.0746   |
+--------------------------------------
+--------------------------------------
+| Progress                | 29.31%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.48e+03 |
+|    ep_rew_mean          | 7.53     |
+| time/                   |          |
+|    total timesteps      | 294400   |
+|    total_time           | 1.87e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.08    |
+|    policy_gradient_loss | -0.00728 |
+|    total_loss           | 0.0276   |
+|    value_loss           | 0.0457   |
+--------------------------------------
+--------------------------------------
+| Progress                | 30.59%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.54e+03 |
+|    ep_rew_mean          | 8.09     |
+| time/                   |          |
+|    total timesteps      | 307200   |
+|    total_time           | 1.94e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.05    |
+|    policy_gradient_loss | 0.000533 |
+|    total_loss           | 0.0914   |
+|    value_loss           | 0.101    |
+--------------------------------------
+--------------------------------------
+| Progress                | 31.87%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.55e+03 |
+|    ep_rew_mean          | 8.26     |
+| time/                   |          |
+|    total timesteps      | 320000   |
+|    total_time           | 2.02e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.01    |
+|    policy_gradient_loss | -0.00548 |
+|    total_loss           | 0.0554   |
+|    value_loss           | 0.0711   |
+--------------------------------------
+--------------------------------------
+| Progress                | 33.15%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.58e+03 |
+|    ep_rew_mean          | 8.23     |
+| time/                   |          |
+|    total timesteps      | 332800   |
+|    total_time           | 2.11e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.08    |
+|    policy_gradient_loss | -0.00444 |
+|    total_loss           | 0.0526   |
+|    value_loss           | 0.0678   |
+--------------------------------------
+--------------------------------------
+| Progress                | 34.43%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.54e+03 |
+|    ep_rew_mean          | 7.99     |
+| time/                   |          |
+|    total timesteps      | 345600   |
+|    total_time           | 2.19e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.04    |
+|    policy_gradient_loss | -0.00379 |
+|    total_loss           | 0.0497   |
+|    value_loss           | 0.0639   |
+--------------------------------------
+---------------------------------------
+| Progress                | 35.71%    |
+| rollout/                |           |
+|    ep_len_mean          | 1.52e+03  |
+|    ep_rew_mean          | 7.99      |
+| time/                   |           |
+|    total timesteps      | 358400    |
+|    total_time           | 2.28e+03  |
+| train/                  |           |
+|    entropy_loss         | -1.03     |
+|    policy_gradient_loss | -0.000215 |
+|    total_loss           | 0.165     |
+|    value_loss           | 0.176     |
+---------------------------------------
+--------------------------------------
+| Progress                | 36.99%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.5e+03  |
+|    ep_rew_mean          | 7.85     |
+| time/                   |          |
+|    total timesteps      | 371200   |
+|    total_time           | 2.37e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.03    |
+|    policy_gradient_loss | -0.00383 |
+|    total_loss           | 0.0846   |
+|    value_loss           | 0.0987   |
+--------------------------------------
+--------------------------------------
+| Progress                | 38.27%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.56e+03 |
+|    ep_rew_mean          | 8        |
+| time/                   |          |
+|    total timesteps      | 384000   |
+|    total_time           | 2.46e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.09    |
+|    policy_gradient_loss | -0.00439 |
+|    total_loss           | 0.034    |
+|    value_loss           | 0.0494   |
+--------------------------------------
+--------------------------------------
+| Progress                | 39.55%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.58e+03 |
+|    ep_rew_mean          | 8.03     |
+| time/                   |          |
+|    total timesteps      | 396800   |
+|    total_time           | 2.55e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.12    |
+|    policy_gradient_loss | -0.00119 |
+|    total_loss           | 0.0298   |
+|    value_loss           | 0.0422   |
+--------------------------------------
+--------------------------------------
+| Progress                | 40.83%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.61e+03 |
+|    ep_rew_mean          | 8.27     |
+| time/                   |          |
+|    total timesteps      | 409600   |
+|    total_time           | 2.63e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.12    |
+|    policy_gradient_loss | -0.00284 |
+|    total_loss           | 0.0972   |
+|    value_loss           | 0.111    |
+--------------------------------------
+---------------------------------------
+| Progress                | 42.11%    |
+| rollout/                |           |
+|    ep_len_mean          | 1.59e+03  |
+|    ep_rew_mean          | 8.15      |
+| time/                   |           |
+|    total timesteps      | 422400    |
+|    total_time           | 2.71e+03  |
+| train/                  |           |
+|    entropy_loss         | -1.1      |
+|    policy_gradient_loss | -0.000528 |
+|    total_loss           | 0.0748    |
+|    value_loss           | 0.0863    |
+---------------------------------------
+--------------------------------------
+| Progress                | 43.39%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.59e+03 |
+|    ep_rew_mean          | 8.12     |
+| time/                   |          |
+|    total timesteps      | 435200   |
+|    total_time           | 2.79e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.07    |
+|    policy_gradient_loss | -0.00476 |
+|    total_loss           | 0.0325   |
+|    value_loss           | 0.048    |
+--------------------------------------
+--------------------------------------
+| Progress                | 44.67%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.59e+03 |
+|    ep_rew_mean          | 7.74     |
+| time/                   |          |
+|    total timesteps      | 448000   |
+|    total_time           | 2.86e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.08    |
+|    policy_gradient_loss | -0.00485 |
+|    total_loss           | 0.0291   |
+|    value_loss           | 0.0448   |
+--------------------------------------
+--------------------------------------
+| Progress                | 45.95%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.6e+03  |
+|    ep_rew_mean          | 7.84     |
+| time/                   |          |
+|    total timesteps      | 460800   |
+|    total_time           | 2.93e+03 |
+| train/                  |          |
+|    entropy_loss         | -0.993   |
+|    policy_gradient_loss | -0.00388 |
+|    total_loss           | 0.0198   |
+|    value_loss           | 0.0337   |
+--------------------------------------
+--------------------------------------
+| Progress                | 47.23%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.64e+03 |
+|    ep_rew_mean          | 8.41     |
+| time/                   |          |
+|    total timesteps      | 473600   |
+|    total_time           | 3e+03    |
+| train/                  |          |
+|    entropy_loss         | -1.01    |
+|    policy_gradient_loss | -0.00406 |
+|    total_loss           | 0.0251   |
+|    value_loss           | 0.0392   |
+--------------------------------------
+--------------------------------------
+| Progress                | 48.51%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.77e+03 |
+|    ep_rew_mean          | 9.54     |
+| time/                   |          |
+|    total timesteps      | 486400   |
+|    total_time           | 3.08e+03 |
+| train/                  |          |
+|    entropy_loss         | -0.957   |
+|    policy_gradient_loss | -0.00328 |
+|    total_loss           | 0.153    |
+|    value_loss           | 0.166    |
+--------------------------------------
+--------------------------------------
+| Progress                | 49.79%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.84e+03 |
+|    ep_rew_mean          | 10.2     |
+| time/                   |          |
+|    total timesteps      | 499200   |
+|    total_time           | 3.15e+03 |
+| train/                  |          |
+|    entropy_loss         | -1       |
+|    policy_gradient_loss | -0.01    |
+|    total_loss           | 0.0951   |
+|    value_loss           | 0.115    |
+--------------------------------------
+--------------------------------------
+| Progress                | 51.07%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.81e+03 |
+|    ep_rew_mean          | 10.1     |
+| time/                   |          |
+|    total timesteps      | 512000   |
+|    total_time           | 3.22e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.05    |
+|    policy_gradient_loss | -0.00634 |
+|    total_loss           | 0.0486   |
+|    value_loss           | 0.0654   |
+--------------------------------------
+--------------------------------------
+| Progress                | 52.35%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.84e+03 |
+|    ep_rew_mean          | 10.2     |
+| time/                   |          |
+|    total timesteps      | 524800   |
+|    total_time           | 3.3e+03  |
+| train/                  |          |
+|    entropy_loss         | -0.933   |
+|    policy_gradient_loss | 0.0019   |
+|    total_loss           | 0.0788   |
+|    value_loss           | 0.0863   |
+--------------------------------------
+--------------------------------------
+| Progress                | 53.63%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.75e+03 |
+|    ep_rew_mean          | 9.24     |
+| time/                   |          |
+|    total timesteps      | 537600   |
+|    total_time           | 3.38e+03 |
+| train/                  |          |
+|    entropy_loss         | -1       |
+|    policy_gradient_loss | -0.00678 |
+|    total_loss           | 0.0235   |
+|    value_loss           | 0.0403   |
+--------------------------------------
+--------------------------------------
+| Progress                | 54.91%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.72e+03 |
+|    ep_rew_mean          | 9.19     |
+| time/                   |          |
+|    total timesteps      | 550400   |
+|    total_time           | 3.48e+03 |
+| train/                  |          |
+|    entropy_loss         | -0.962   |
+|    policy_gradient_loss | -0.00661 |
+|    total_loss           | 0.0518   |
+|    value_loss           | 0.068    |
+--------------------------------------
+--------------------------------------
+| Progress                | 56.19%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.7e+03  |
+|    ep_rew_mean          | 9.19     |
+| time/                   |          |
+|    total timesteps      | 563200   |
+|    total_time           | 3.57e+03 |
+| train/                  |          |
+|    entropy_loss         | -0.963   |
+|    policy_gradient_loss | -0.00692 |
+|    total_loss           | 0.0533   |
+|    value_loss           | 0.0699   |
+--------------------------------------
+--------------------------------------
+| Progress                | 57.47%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.65e+03 |
+|    ep_rew_mean          | 8.92     |
+| time/                   |          |
+|    total timesteps      | 576000   |
+|    total_time           | 3.66e+03 |
+| train/                  |          |
+|    entropy_loss         | -1.02    |
+|    policy_gradient_loss | -0.00895 |
+|    total_loss           | 0.0526   |
+|    value_loss           | 0.0718   |
+--------------------------------------
+--------------------------------------
+| Progress                | 58.75%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.65e+03 |
+|    ep_rew_mean          | 8.56     |
+| time/                   |          |
+|    total timesteps      | 588800   |
+|    total_time           | 3.75e+03 |
+| train/                  |          |
+|    entropy_loss         | -0.882   |
+|    policy_gradient_loss | -0.00235 |
+|    total_loss           | 0.0337   |
+|    value_loss           | 0.0449   |
+--------------------------------------
+--------------------------------------
+| Progress                | 60.03%   |
+| rollout/                |          |
+|    ep_len_mean          | 1.64e+03 |
+|    ep_rew_mean          | 8.48     |
+| time/                   |          |
+|    total timesteps      | 601600   |
+|    total_time           | 3.85e+03 |
+| train/                  |          |
+|    entropy_loss         | -0.955   |
+|    policy_gradient_loss | -0.00584 |
+|    total_loss           | 0.104    |
+|    value_loss           | 0.119    |
+--------------------------------------
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12

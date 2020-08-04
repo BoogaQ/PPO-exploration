@@ -139,7 +139,6 @@ class PPO(BaseAlgorithm):
         return True
 
     def train(self):
-
         total_losses, policy_losses, value_losses, entropy_losses = [], [], [], []
 
         for epoch in range(self.n_epochs):
@@ -188,13 +187,21 @@ class PPO(BaseAlgorithm):
 
         self._n_updates += self.n_epochs
     
+<<<<<<< HEAD
     def learn(self, total_timesteps, log_interval):
+=======
+    def learn(self, total_timesteps, log_interval, eval_freq = -1, n_eval_episodes = 5):
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
         start_time = time.time()
         iteration = 0
 
         while self.num_timesteps < total_timesteps:
             progress = round(self.num_timesteps/total_timesteps * 100, 2)
+<<<<<<< HEAD
             self.collect_samples()
+=======
+            self.collect_rollouts()
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
             
             iteration += 1
             if log_interval is not None and iteration % log_interval == 0:
@@ -205,13 +212,17 @@ class PPO(BaseAlgorithm):
                                   np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
                     logger.record("rollout/ep_len_mean",
                                   np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+<<<<<<< HEAD
                     logger.record("rollout/num_episodes", self.num_episodes)
+=======
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
                 fps = int(self.num_timesteps / (time.time() - start_time))
                 logger.record("time/total_time", (time.time() - start_time))
                 logger.dump(step=self.num_timesteps)   
 
             self.train()
 
+<<<<<<< HEAD
         logger.record("Complete", '')
         logger.record("time/total timesteps", self.num_timesteps)
         if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
@@ -408,6 +419,8 @@ class PPO_RND(PPO):
             if np.random.randn() < 0.25:
                 self.train_rnd(self.rollout)
 
+=======
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
         logger.record("Complete", '.')
         logger.record("time/total timesteps", self.num_timesteps)
         if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
@@ -433,6 +446,7 @@ class PPO_RND(PPO):
             maybe_ep_info = info.get('episode')
             if maybe_ep_info is not None:
                 self.ep_info_buffer.extend([maybe_ep_info])
+<<<<<<< HEAD
 
     def rew_norm_and_clip(self, obs):  
         norm_obs = (obs - self.rms_obs.mean/(np.sqrt(self.rms_obs.var) + 1e-8)).clip(-5, 5)
@@ -440,3 +454,5 @@ class PPO_RND(PPO):
 
 
 
+=======
+>>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
