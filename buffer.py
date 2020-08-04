@@ -10,7 +10,7 @@ class BaseBuffer(object):
     Base class that represent a buffer (rollout or replay)
     :param buffer_size: (int) Max number of element in the buffer
     :param observation_space: (spaces.Space) Observation space
-    :param action_dim: (spaces.Space) Action space
+    :param action_space: (spaces.Space) Action space
     :param device: (Union[th.device, str]) Pynp device
         to which the values will be converted
     :param n_envs: (int) Number of parallel environments
@@ -19,18 +19,20 @@ class BaseBuffer(object):
     def __init__(self,
                  buffer_size,
                  observation_space,
-                 action_dim,
+                 action_space,
                  device = 'cpu',
                  n_envs = 1):
         super(BaseBuffer, self).__init__()
         self.buffer_size = buffer_size
         self.observation_space = observation_space
         self.obs_shape = observation_space.shape
-        self.action_dim = action_dim
+        self.action_space = action_space
         self.pos = 0
         self.full = False
         self.device = device
         self.n_envs = n_envs
+
+        self.action_dim = 1 if action_space.__class__.__name__ == "Discrete" else action_space.shape[0]
 
     @staticmethod
     def swap_and_flatten(arr):
@@ -117,8 +119,8 @@ class BaseBuffer(object):
         return reward
 
 class RolloutStorage(BaseBuffer):
-    def __init__(self, buffer_size, n_envs, obs_space, action_dim, gae_lam = 0.95, gamma = 0.99):
-        super(RolloutStorage, self).__init__(buffer_size, obs_space, action_dim, n_envs = n_envs)
+    def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99):
+        super(RolloutStorage, self).__init__(buffer_size, obs_space, action_space, n_envs = n_envs)
 
         self.gae_lam = gae_lam
         self.gamma = gamma
@@ -160,7 +162,7 @@ class RolloutStorage(BaseBuffer):
         self.actions[self.pos] =            np.array(action).copy()
         self.rewards[self.pos] =            np.array(reward).copy()
         self.masks[self.pos] =              np.array(mask).copy()
-        self.values[self.pos] =             value.clone().cpu().numpy().flatten()
+        self.values[self.pos] =             value.clone().cpu().numpy()
         self.action_log_probs[self.pos] =   log_prob.clone().cpu().numpy()
 
         self.pos += 1
@@ -232,19 +234,13 @@ class RolloutStorage(BaseBuffer):
 
 
 
-
-
-
-
-
-
 class IntrinsicBuffer(RolloutStorage):
-    def __init__(self, buffer_size, n_envs, obs_space, action_dim, gae_lam = 0.95, int_gae_lam = 0.95, gamma = 0.99, int_gamma = 0.99):
+    def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, int_gae_lam = 0.95, gamma = 0.99, int_gamma = 0.99):
         self.int_gae_lam = .95
         self.int_gamma = .99
         self.int_rewards, self.int_values, self.int_advantages, self.int_returns = None, None, None, None
 
-        super(IntrinsicBuffer, self).__init__(buffer_size, n_envs, obs_space, action_dim, gae_lam, gamma)
+        super(IntrinsicBuffer, self).__init__(buffer_size, n_envs, obs_space, action_space, gae_lam, gamma)
 
         self.RolloutSample = namedtuple('RolloutSample', ['observations', 
                                                             'actions', 

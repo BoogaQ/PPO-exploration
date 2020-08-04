@@ -5,9 +5,9 @@ from queue import Queue
 
 if __name__ == '__main__':
     iterations = 100
-
-    policy = Policy(env = gym.make(ENV_ID))
-    
+    env = gym.make(ENV_ID)
+    policy = Actor(env.observation_space.shape[0], env.action_space.n, HIDDEN_SIZE) 
+        
     params_queues = Queue(maxsize=1)
     rewards_queue = Queue(maxsize=iters_per_update)
 
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     reward_std = []
     
     for step_idx in range(iterations):      
-        params = policy.net.state_dict()
+        params = policy.state_dict()
         params_queues.put(params)
 
         worker(0, params_queues, rewards_queue)

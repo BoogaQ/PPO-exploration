@@ -6,24 +6,24 @@ import collections
 import copy
 
 ITERS_PER_UPDATE = 10
-NOISE_STD = 0.01
-LR = 1e-3
-PROCESSES_COUNT = 8 # amount of worker
-HIDDEN_SIZE = 4
-ENV_NAME = "MountainCar-v0" 
+NOISE_STD = 0.1 #0.04 higher std leeds to better exploration - more stable learning 
+LR = 2e-3
+PROCESSES_COUNT = 4 # amount of worker default 6
+HIDDEN_SIZE = 32   # 6
+ENV_NAME = "Pendulum-v0"
 RewardsItem = collections.namedtuple('RewardsItem', field_names=['seed', 'pos_reward', 'neg_reward', 'steps'])
 
 
 
 class Model(object):
 
-    def __init__(self, stateCnt, actionCnt, hidden_size = 128):
+    def __init__(self, stateCnt, actionCnt, hidden_size = HIDDEN_SIZE):
         # inits zero weights
-        self.weights = [np.zeros(shape=(stateCnt, hidden_size)), np.zeros(shape=(hidden_size, hidden_size)), np.zeros(shape=(hidden_size,actionCnt))]
+        self.weights = [np.random.uniform(-1,1,size=(stateCnt, hidden_size)), np.random.uniform(-1,1, size=(hidden_size, hidden_size)), np.random.uniform(-1,1,size=(hidden_size,actionCnt))]
 
     def predict(self, inp):
         out = np.expand_dims(inp.flatten(), 0)
-        out = out / np.linalg.norm(out)
+        #out = out / np.linalg.norm(out)
         weight_len = len(self.weights)
         for idx, layer in enumerate(self.weights):
             # hidden activation
@@ -51,11 +51,11 @@ class Model(object):
             # tanh
             #return np.tanh(x)
         else:
-            # softnmax
-            #return (np.exp(x))/sum(np.exp(x))
+            # tanh
+            return np.tanh(x)
             
             # relu
-            return np.maximum(x,0)
+            #return np.maximum(x,0)
         
     def get_weights(self):
         return self.weights
@@ -73,9 +73,10 @@ def evaluate(env, brain):
     steps = 0
     while True:
         state = np.expand_dims(state, axis=0)
-        action_prob = brain.predict(state)
-        action = action_prob.argmax()  # for discrete action space
-        
+        #print("State:", state)
+        action_mean = brain.predict(state)
+        action = np.random.normal(action_mean, scale=0.01)
+        action = np.clip(action, -1, 1)  # pendulums action range is between -2,2  
         next_state, reward, done, _ = env.step(action)
         rewards += reward
         steps  += 1
@@ -88,7 +89,7 @@ def evaluate(env, brain):
 
 def sample_noise(brain):
     """
-    Sampling noise to a positive and negative noise buffer.
+    Samples noise from a normal distribution in the shape of the brain parameters. Output are two noisy parameters: + noise and - noise (for better and more stable learning!) 
     """
     pos = []
     neg = []
@@ -104,7 +105,6 @@ def eval_with_noise(env, brain, noise, noise_std):
     Evaluates the current brain with added parameter noise
   
     """
-  
     old_params = copy.deepcopy(brain.get_weights())
     new_params = []
     for p, p_n in zip(brain.get_weights(), noise):
@@ -117,9 +117,13 @@ def eval_with_noise(env, brain, noise, noise_std):
 
 
 def worker_func(worker_id, params_queue, rewards_queue, noise_std):
+    """
+    Worker function that gathers pos and negative rewards for the optimization process and puts them in the rewards_queue with the network parameter seed:
+        >> rewards_queue.put(RewardsItem(seed=seed, pos_reward=pos_reward, neg_reward=neg_reward, steps=pos_steps+neg_steps)) <<
+    """
     #print("worker: {} has started".format(worker_id))
     env = gym.make(ENV_NAME)
-    net = Model(env.observation_space.shape[0], env.action_space.n)
+    net = Model(env.observation_space.shape[0], env.action_space.shape[0])
 
     while True:
         params = params_queue.get()
@@ -135,8 +139,7 @@ def worker_func(worker_id, params_queue, rewards_queue, noise_std):
             noise, neg_noise = sample_noise(net)
             pos_reward, pos_steps = eval_with_noise(env, net, noise, noise_std)
             neg_reward, neg_steps = eval_with_noise(env, net, neg_noise, noise_std)
-            #print(_, "\n",noise, pos_reward, neg_reward)
-            
+            #print(_, "\n",noise, pos_reward, neg_reward)         
             rewards_queue.put(RewardsItem(seed=seed, pos_reward=pos_reward, neg_reward=neg_reward, steps=pos_steps+neg_steps))
 
     pass
@@ -166,22 +169,36 @@ def train_step(brain, batch_noise, batch_rewards, step_idx):
         update = p_update / (len(batch_reward)*NOISE_STD)
         p += LR * update
         
+
+def test_current_params(env, brain):
+    """
+    Runs the current network parameters on the env to visually monitor the progress.
+    """
+    state = env.reset()
+    
+    while True:
+        env.render()
+        state = np.expand_dims(state, axis=0)
+        action_mean = brain.predict(state)
+        action = np.random.normal(action_mean, scale=0.01)
+        action = np.clip(action, -1, 1)  # pendulums action range is between -2,2  
+        state, reward, done, _ = env.step(action)
+
+        if done:
+            break
         
         
 if __name__ == "__main__":
 
     env = gym.make(ENV_NAME)
     #env.seed(2)
-    brain = Model(env.observation_space.shape[0], env.action_space.n)
+    brain = Model(env.observation_space.shape[0], env.action_space.shape[0])
 
-    iterations = 100 # max iterations to run 
+    iterations = 1500 #1500 # max iterations to run 
 
     params_queues = [mp.Queue(maxsize=1) for _ in range(PROCESSES_COUNT)]
     rewards_queue = mp.Queue(maxsize=ITERS_PER_UPDATE)
-    
-    
     workers = []
-
 
     for idx, params_queue in enumerate(params_queues):
         proc = mp.Process(target=worker_func, args=(idx, params_queue, rewards_queue, NOISE_STD))
@@ -192,8 +209,8 @@ if __name__ == "__main__":
     step_idx = 0
     reward_history = []
     reward_max =[]
+    reward_min = []
     reward_std = []
-
 
     for step_idx in range(iterations):
         # broadcasting network params
@@ -206,6 +223,7 @@ if __name__ == "__main__":
         batch_steps_data = []
         batch_steps = 0
         results = 0
+        
         while True: 
             while not rewards_queue.empty():
                 reward = rewards_queue.get_nowait()
@@ -225,23 +243,29 @@ if __name__ == "__main__":
         m_reward = np.mean(batch_reward)
         reward_history.append(m_reward)
         reward_max.append(np.max(batch_reward))
+        reward_min.append(np.min(batch_reward))
         reward_std.append(np.std(batch_reward))
-        if m_reward > 199:
-            print("\nSolved the environment in {} steps".format(step_idx))
-            break
+# =============================================================================
+#         if m_reward > -250:
+#             print("\nSolved the environment in {} steps".format(step_idx))
+#             break
+# =============================================================================
         train_step(brain, batch_noise, batch_reward, step_idx)
 
         print("\rStep: {}, Mean_Reward: {:.2f}".format(step_idx, m_reward), end = "", flush = True)
-
+        
+        if step_idx % 10 == 0:
+            test_current_params(env, brain)
 
     for worker, p_queue in zip(workers, params_queues):
         p_queue.put(None)
         worker.join()
 
     plt.figure(figsize = (11,7))
-    plt.plot(reward_history, label = "Mean Reward", color = "orange")
+    plt.plot(reward_history, label = "Mean Reward", color = "green")
     plt.plot(reward_max, label = "Max Reward", color = "blue")
-    plt.plot(reward_std, label = "Reward std", color = "green")
+    plt.plot(reward_min, label = "Min Reward", color = "red")
+    plt.plot(reward_std, label = "Reward std", color = "orange")
     plt.xlabel("Steps")
     plt.ylabel("Rewards")
     plt.legend()
