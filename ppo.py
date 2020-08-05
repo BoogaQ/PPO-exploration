@@ -6,7 +6,6 @@ import numpy as np
 from buffer import RolloutStorage, IntrinsicBuffer
 from models import *
 from util import RunningMeanStd
-from agents import Agent
 
 import time
 from abc import ABC, abstractmethod
@@ -187,21 +186,13 @@ class PPO(BaseAlgorithm):
 
         self._n_updates += self.n_epochs
     
-<<<<<<< HEAD
     def learn(self, total_timesteps, log_interval):
-=======
-    def learn(self, total_timesteps, log_interval, eval_freq = -1, n_eval_episodes = 5):
->>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
         start_time = time.time()
         iteration = 0
 
         while self.num_timesteps < total_timesteps:
             progress = round(self.num_timesteps/total_timesteps * 100, 2)
-<<<<<<< HEAD
             self.collect_samples()
-=======
-            self.collect_rollouts()
->>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
             
             iteration += 1
             if log_interval is not None and iteration % log_interval == 0:
@@ -212,17 +203,13 @@ class PPO(BaseAlgorithm):
                                   np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
                     logger.record("rollout/ep_len_mean",
                                   np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
-<<<<<<< HEAD
                     logger.record("rollout/num_episodes", self.num_episodes)
-=======
->>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
                 fps = int(self.num_timesteps / (time.time() - start_time))
                 logger.record("time/total_time", (time.time() - start_time))
                 logger.dump(step=self.num_timesteps)   
 
             self.train()
 
-<<<<<<< HEAD
         logger.record("Complete", '')
         logger.record("time/total timesteps", self.num_timesteps)
         if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
@@ -299,7 +286,7 @@ class PPO_RND(PPO):
                 int_rewards = np.zeros_like(rewards)   
 
             else:
-                int_rewards = self.rnd.int_reward(self.last_obs)
+                int_rewards = self.rnd.int_reward(self.last_obs).detach().numpy()
 
             self.rollout.add(self.last_obs, actions, rewards, int_rewards, ext_values, int_values, dones, log_probs)
 
@@ -384,7 +371,7 @@ class PPO_RND(PPO):
                 obs = batch.observations #self.rew_norm_and_clip(batch.observations.numpy())
                 pred, target = self.rnd(obs)
 
-                loss = F.mse_loss(pred, target)
+                loss = F.mse_loss(pred, target).mean()
 
                 self.rnd_optimizer.zero_grad()
                 loss.backward()
@@ -419,8 +406,6 @@ class PPO_RND(PPO):
             if np.random.randn() < 0.25:
                 self.train_rnd(self.rollout)
 
-=======
->>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
         logger.record("Complete", '.')
         logger.record("time/total timesteps", self.num_timesteps)
         if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
@@ -446,13 +431,178 @@ class PPO_RND(PPO):
             maybe_ep_info = info.get('episode')
             if maybe_ep_info is not None:
                 self.ep_info_buffer.extend([maybe_ep_info])
-<<<<<<< HEAD
 
     def rew_norm_and_clip(self, obs):  
         norm_obs = (obs - self.rms_obs.mean/(np.sqrt(self.rms_obs.var) + 1e-8)).clip(-5, 5)
         return torch.FloatTensor(norm_obs.astype(float))
 
 
+class PPO_ICM(BaseAlgorithm):
+    def __init__(self, *, 
+                env, 
+                lr = 3e-4, 
+                nstep = 128, 
+                batch_size = 128, 
+                n_epochs = 4, 
+                gamma = 0.99, 
+                gae_lam = 0.9, 
+                clip_range = 0.2, 
+                ent_coef = .01, 
+                vf_coef = 1,
+                max_grad_norm = 0.2,
+                hidden_size = 128,
+                icm_hidden_size = 32):   
+        super(PPO_ICM, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
+     
 
-=======
->>>>>>> 28e87e7e8b00547797b0dd0409e45f3b4e11af12
+        self.policy = Policy(self.state_dim, self.action_dim, hidden_size)
+        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.action_space, gae_lam = gae_lam)
+
+        self.feature_extractor = FeatureExtractor(self.state_dim, icm_hidden_size)
+        self.forward_model = ForwardModel(self.action_dim, icm_hidden_size)
+        self.inverse_model = InverseModel(1, icm_hidden_size)
+
+        self.icm_params = list(self.feature_extractor.parameters()) + list(self.forward_model.parameters()) + list(self.inverse_model.parameters())
+        self.icm_optimizer = optim.Adam(self.icm_params, lr = lr)
+        
+        self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
+
+        self.last_obs = self.env.reset()
+
+    def collect_samples(self):
+
+        assert self.last_obs is not None
+        
+        rollout_step = 0
+        self.rollout.reset()
+
+        int_rewards = np.zeros((127,1))
+
+        while rollout_step < self.nstep:
+            with torch.no_grad():
+                # Convert to pytorch tensor
+                actions, values, log_probs = self.policy.act(self.last_obs)
+            
+            actions = actions.cpu().numpy()
+            obs, rewards, dones, infos = self.env.step(actions)
+            if any(dones):
+                self.num_episodes += sum(dones)
+            rollout_step += 1
+            self.num_timesteps += self.num_envs
+            self.update_info_buffer(infos)
+
+            current_features = self.feature_extractor(torch.Tensor(self.last_obs))
+            next_feature = self.feature_extractor(torch.Tensor(obs))
+            next_feature_hat = self.forward_model(actions, current_features)
+            int_reward = (next_feature_hat - next_feature).pow(2).mean(dim=1)
+
+            self.rollout.add(self.last_obs, actions, rewards, values, dones, log_probs, int_reward.detach())
+            self.last_obs = obs
+
+        self.rollout.compute_returns_and_advantages(values, dones=dones)
+
+        return True
+
+    def train(self):
+        total_losses, policy_losses, value_losses, entropy_losses, icm_losses = [], [], [], [], []
+
+        for epoch in range(self.n_epochs):
+            for batch in self.rollout.get(self.batch_size):
+                observations = batch.observations
+                actions = batch.actions.long().flatten()
+                old_log_probs = batch.old_log_probs
+                old_values =    batch.old_values
+                advantages =    batch.advantages
+                returns =       batch.returns
+
+                state_values, action_log_probs, entropy = self.policy.evaluate(observations, actions)
+
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+                ratio = torch.exp(action_log_probs - old_log_probs)
+
+                # Surrogate loss
+                surr_loss_1 = advantages * ratio
+                surr_loss_2 = advantages * torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
+                policy_loss = -torch.min(surr_loss_1, surr_loss_2).mean()
+
+                # Clipped value loss
+                state_values_clipped = old_values + (state_values - old_values).clamp(-self.clip_range, self.clip_range)
+                value_loss = F.mse_loss(returns, state_values).mean()
+                value_loss_clipped = F.mse_loss(returns, state_values_clipped).mean()
+                value_loss = torch.max(value_loss, value_loss_clipped).mean()
+
+                # Icm loss
+
+                current_features = self.feature_extractor(observations[:-1])
+                next_features = self.feature_extractor(observations[1:])
+                next_features_hat = self.forward_model(actions[:-1], current_features)
+                action_hat = self.inverse_model(torch.cat([current_features, next_features], dim = -1))
+
+                forward_loss = F.mse_loss(next_features, next_features_hat)
+                inverse_loss = F.mse_loss(actions[:-1], action_hat.squeeze())
+                icm_loss = inverse_loss + forward_loss
+
+                entropy_loss = -torch.mean(entropy)
+
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss +  icm_loss
+
+                self.optimizer.zero_grad()
+                self.icm_optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                self.icm_optimizer.step()
+
+                total_losses.append(loss.item())
+                policy_losses.append(policy_loss.item())
+                value_losses.append(value_loss.item())
+                entropy_losses.append(entropy_loss.item())
+                icm_losses.append(icm_loss.item())
+
+        logger.record("train/entropy_loss", np.mean(entropy_losses))
+        logger.record("train/policy_gradient_loss", np.mean(policy_losses))
+        logger.record("train/value_loss", np.mean(value_losses))
+        logger.record("train/total_loss", np.mean(total_losses))
+        logger.record("train/icm_loss", np.mean(icm_losses))
+
+        self._n_updates += self.n_epochs
+    
+    def learn(self, total_timesteps, log_interval):
+        start_time = time.time()
+        iteration = 0
+
+        while self.num_timesteps < total_timesteps:
+            progress = round(self.num_timesteps/total_timesteps * 100, 2)
+            self.collect_samples()
+            
+            iteration += 1
+            if log_interval is not None and iteration % log_interval == 0:
+                logger.record("Progress", str(progress)+'%')
+                logger.record("time/total timesteps", self.num_timesteps)
+                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    logger.record("rollout/ep_rew_mean",
+                                  np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    logger.record("rollout/ep_len_mean",
+                                  np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+                    logger.record("rollout/num_episodes", self.num_episodes)
+                fps = int(self.num_timesteps / (time.time() - start_time))
+                logger.record("time/total_time", (time.time() - start_time))
+                logger.dump(step=self.num_timesteps)   
+
+            self.train()
+
+        logger.record("Complete", '')
+        logger.record("time/total timesteps", self.num_timesteps)
+        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+            logger.record("rollout/ep_rew_mean",
+                            np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+            logger.record("rollout/ep_len_mean",
+                            np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+            logger.record("rollout/num_episodes", self.num_episodes)
+        fps = int(self.num_timesteps / (time.time() - start_time))
+        logger.record("time/total_time", (time.time() - start_time))
+        logger.dump(step=self.num_timesteps)   
+
+        return self
+

@@ -125,7 +125,7 @@ class RolloutStorage(BaseBuffer):
         self.gae_lam = gae_lam
         self.gamma = gamma
 
-        self.observations, self.actions, self.rewards, self.values = None, None, None, None
+        self.observations, self.actions, self.rewards, self.values, self.int_rewards = None, None, None, None, None
         self.returns, self.action_log_probs, self.masks, self.advantages = None, None, None, None  
         self.generator_ready = False
 
@@ -140,6 +140,7 @@ class RolloutStorage(BaseBuffer):
         self.observations =     np.zeros((self.buffer_size, self.n_envs, *self.obs_shape), dtype = 'float32')
         self.actions =          np.zeros((self.buffer_size, self.n_envs))
         self.rewards =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
+        self.int_rewards =      np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.values =           np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.returns =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.action_log_probs = np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
@@ -148,7 +149,7 @@ class RolloutStorage(BaseBuffer):
         self.generator_ready = False
         super(RolloutStorage, self).reset()   
 
-    def add(self, obs, action, reward, value, mask, log_prob):
+    def add(self, obs, action, reward, value, mask, log_prob, int_reward = 0):
         """
         :param obs: (np.Tensor) Observation
         :param action: (np.Tensor) Action
@@ -161,6 +162,7 @@ class RolloutStorage(BaseBuffer):
         self.observations[self.pos] =       np.array(obs).copy()
         self.actions[self.pos] =            np.array(action).copy()
         self.rewards[self.pos] =            np.array(reward).copy()
+        self.int_rewards[self.pos] =        np.array(int_reward).copy()
         self.masks[self.pos] =              np.array(mask).copy()
         self.values[self.pos] =             value.clone().cpu().numpy()
         self.action_log_probs[self.pos] =   log_prob.clone().cpu().numpy()
@@ -171,6 +173,40 @@ class RolloutStorage(BaseBuffer):
 
 
     def compute_returns_and_advantages(self, last_value, dones):
+        """
+        Post-processing step: compute the returns (sum of discounted rewards)
+        and GAE advantage.
+        Adapted from Stable-Baselines PPO2.
+        Uses Generalized Advantage Estimation (https://arxiv.org/abs/1506.02438)
+        to compute the advantage. To obtain vanilla advantage (A(s) = R - V(S))
+        where R is the discounted reward with value bootstrap,
+        set ``gae_lambda=1.0`` during initialization.
+
+        :param last_value: (th.Tensor)
+        :param dones: (np.ndarray)
+        """
+
+        last_value = last_value.clone().cpu().numpy().flatten()
+        last_gae_lam = 0
+
+        self.int_rewards = (self.int_rewards - np.mean(self.int_rewards)) / (np.std(self.int_rewards) + 1e-8)
+
+        # Normalizing the rewards:
+        #self.rewards = (self.rewards - np.mean(self.rewards)) / (np.std(self.rewards) + 1e-5)
+
+        for step in reversed(range(self.buffer_size)):
+            if step == self.buffer_size - 1:
+                next_non_terminal = 1.0 - dones
+                next_value = last_value
+            else:
+                next_non_terminal = 1.0 - self.masks[step + 1]
+                next_value = self.values[step + 1]
+            delta = self.rewards[step] + self.int_rewards[step] + self.gamma * next_value * next_non_terminal - self.values[step]
+            last_gae_lam = delta + self.gamma * self.gae_lam * next_non_terminal * last_gae_lam
+            self.advantages[step] = last_gae_lam
+        self.returns = self.advantages + self.values
+
+    def compute_intrinsicreturns_and_advantages(self, last_value, dones, int_rewards):
         """
         Post-processing step: compute the returns (sum of discounted rewards)
         and GAE advantage.

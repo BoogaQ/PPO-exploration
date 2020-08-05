@@ -10,7 +10,7 @@ import numpy as np
 class Policy():
     def __init__(self, state_dim, action_dim, hidden_size):
 
-        self.net = MlpIntDiscrete(state_dim, action_dim, hidden_size = hidden_size)
+        self.net = MlpDiscrete(state_dim, action_dim, hidden_size = hidden_size)
 
     def act(self, obs):
         return self.net.act(obs)
@@ -258,9 +258,9 @@ class RndNetwork(nn.Module):
         obs = torch.FloatTensor(obs)
         
         pred, target = self(obs)
-        int_rew = torch.mean(F.mse_loss(pred, target, reduction='none'))
+        int_rew = F.mse_loss(pred, target)
         
-        return int_rew.data.to('cpu').numpy()
+        return int_rew
 
 
 class Actor(nn.Module):
@@ -275,7 +275,6 @@ class Actor(nn.Module):
         self.a1 = nn.Linear(hidden_size, hidden_size)
         self.a2 = nn.Linear(hidden_size, output_size)
 
-
     def forward(self, x):
         actor = self.actor(x)
         actor = F.relu(self.a1(actor))
@@ -288,5 +287,36 @@ class Actor(nn.Module):
         dist = distributions.Categorical(F.softmax(logits, dim = -1))
         return dist.sample()
 
+
+class InverseModel(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(InverseModel, self).__init__()
+        self.fc = nn.Linear(hidden_size*2, input_size)
+        
+    def forward(self, features): # (1, hidden_size)
+        action = self.fc(features) # (1, input_size)
+        return action
+
+class ForwardModel(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(ForwardModel, self).__init__()
+        self.fc = nn.Linear(hidden_size+input_size, hidden_size)
+        self.eye = torch.eye(input_size)
+        
+    def forward(self, action, features):
+        x = torch.cat([self.eye[action], features], dim=-1) # (1, input_size+hidden_size)
+        features = self.fc(x) # (1, hidden_size)
+        return features
+
+class FeatureExtractor(nn.Module):
+    def __init__(self, space_dims, hidden_size):
+        super(FeatureExtractor, self).__init__()
+        self.fc1 = nn.Linear(space_dims, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        
+    def forward(self, x):
+        y = nn.ReLU(self.fc1(x))
+        y = torch.tanh(self.fc2(y))
+        return y
 
     
