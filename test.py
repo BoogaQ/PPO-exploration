@@ -1,69 +1,44 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Normal
+
 import numpy as np
 import matplotlib.pyplot as plt
 import gym
-import multiprocessing as mp
+import torch.multiprocessing as mp
 import collections
+from collections import deque
 import copy
+from torch.utils.tensorboard import SummaryWriter
+from sklearn.neighbors import NearestNeighbors
 
 ITERS_PER_UPDATE = 10
-NOISE_STD = 0.1 #0.04 higher std leeds to better exploration - more stable learning 
-LR = 2e-3
+NOISE_STD = 0.1 #0.04 higher std leeds to better exploration - more stable learning
+LR = 2e-2
 PROCESSES_COUNT = 4 # amount of worker default 6
-HIDDEN_SIZE = 32   # 6
-ENV_NAME = "Pendulum-v0"
+HIDDEN_SIZE = 10   # 6
+K_NEIGHBORS = 10
+ENV_NAME =  "MountainCar-v0"   #"Alien-ram-v0"
 RewardsItem = collections.namedtuple('RewardsItem', field_names=['seed', 'pos_reward', 'neg_reward', 'steps'])
 
 
 
-class Model(object):
+class Model(nn.Module):
+    def __init__(self, state_size, action_size, idx, hidden_size=HIDDEN_SIZE):
+        super(Model, self).__init__()
+        self.idx = idx
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_size)
 
-    def __init__(self, stateCnt, actionCnt, hidden_size = HIDDEN_SIZE):
-        # inits zero weights
-        self.weights = [np.random.uniform(-1,1,size=(stateCnt, hidden_size)), np.random.uniform(-1,1, size=(hidden_size, hidden_size)), np.random.uniform(-1,1,size=(hidden_size,actionCnt))]
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        probs = torch.softmax(self.fc3(x), dim=1)
+        return probs
 
-    def predict(self, inp):
-        out = np.expand_dims(inp.flatten(), 0)
-        #out = out / np.linalg.norm(out)
-        weight_len = len(self.weights)
-        for idx, layer in enumerate(self.weights):
-            # hidden activation
-            if idx < weight_len - 1:
-                out = self.activation(np.dot(out, layer))
-            # outout activation
-            else:
-                out = self.activation(np.dot(out, layer), type_="output_layer")
-        return out[0]
-    
-    def activation(self,x, type_="hidden"):
-        if type_ == "hidden":
-            # relu
-            return np.maximum(x,0)
-            
-            # softmax
-            #return (np.exp(x))/sum(np.exp(x))
-            
-            #softplus
-            #return np.log(1 + np.exp(x))
-            
-            #sigmoid
-            #return 1/(1+np.exp(-x))
-            
-            # tanh
-            #return np.tanh(x)
-        else:
-            # tanh
-            return np.tanh(x)
-            
-            # relu
-            #return np.maximum(x,0)
-        
-    def get_weights(self):
-        return self.weights
 
-    def set_weights(self, weights):
-        self.weights = weights
-        
-        
 def evaluate(env, brain):
     """
     Runs an evaluation on the given brain.
@@ -72,29 +47,27 @@ def evaluate(env, brain):
     rewards = 0
     steps = 0
     while True:
-        state = np.expand_dims(state, axis=0)
-        #print("State:", state)
-        action_mean = brain.predict(state)
-        action = np.random.normal(action_mean, scale=0.01)
-        action = np.clip(action, -1, 1)  # pendulums action range is between -2,2  
-        next_state, reward, done, _ = env.step(action)
+        state = torch.from_numpy(state).unsqueeze(0).float()
+        probs = brain(state)
+        action = probs.max(dim = 1)[1]
+        next_state, reward, done, _ = env.step(action.data.numpy()[0])
         rewards += reward
         steps  += 1
         state = next_state
         if done:
             break
-      
+
     return rewards, steps
 
 
 def sample_noise(brain):
     """
-    Samples noise from a normal distribution in the shape of the brain parameters. Output are two noisy parameters: + noise and - noise (for better and more stable learning!) 
+    Samples noise from a normal distribution in the shape of the brain parameters. Output are two noisy parameters: + noise and - noise (for better and more stable learning!)
     """
     pos = []
     neg = []
-    for param in brain.get_weights():
-        noise_t = np.random.normal(size = param.shape)
+    for param in brain.parameters():
+        noise_t = torch.tensor(np.random.normal(size = param.data.size()).astype(np.float32))
         pos.append(noise_t)
         neg.append(-noise_t)
     return pos, neg
@@ -103,17 +76,13 @@ def sample_noise(brain):
 def eval_with_noise(env, brain, noise, noise_std):
     """
     Evaluates the current brain with added parameter noise
-  
     """
-    old_params = copy.deepcopy(brain.get_weights())
-    new_params = []
-    for p, p_n in zip(brain.get_weights(), noise):
-        p += noise_std*p_n
-        new_params.append(p)
-    brain.set_weights(new_params)
+    for p, p_n in zip(brain.parameters(), noise):
+        p.data += noise_std * p_n
     r, s = evaluate(env, brain)
-    brain.set_weights(old_params)
-    return r, s 
+    for p, p_n in zip(brain.parameters(), noise):
+        p.data -= noise_std * p_n
+    return r, s
 
 
 def worker_func(worker_id, params_queue, rewards_queue, noise_std):
@@ -123,29 +92,29 @@ def worker_func(worker_id, params_queue, rewards_queue, noise_std):
     """
     #print("worker: {} has started".format(worker_id))
     env = gym.make(ENV_NAME)
-    net = Model(env.observation_space.shape[0], env.action_space.shape[0])
-
+    net = Model(env.observation_space.shape[0], env.action_space.n, "worker")
+    net.eval()
     while True:
         params = params_queue.get()
         if params is None:
             break
 
-        # set parameters of the queue - equal to: net.load_state_dict(params)
-        net.set_weights([param for param in params])
-        
+        # set parameters of the queue
+        net.load_state_dict(params)
+
         for _ in range(ITERS_PER_UPDATE):
             seed = np.random.randint(low=0, high=65535)
             np.random.seed(seed)
             noise, neg_noise = sample_noise(net)
             pos_reward, pos_steps = eval_with_noise(env, net, noise, noise_std)
             neg_reward, neg_steps = eval_with_noise(env, net, neg_noise, noise_std)
-            #print(_, "\n",noise, pos_reward, neg_reward)         
+            #print(_, "\n",noise, pos_reward, neg_reward)
             rewards_queue.put(RewardsItem(seed=seed, pos_reward=pos_reward, neg_reward=neg_reward, steps=pos_steps+neg_steps))
 
     pass
 
 
-def train_step(brain, batch_noise, batch_rewards, step_idx):
+def train_step(brain, novelty, batch_noise, batch_rewards, step_idx):
     """
     Optimizes the weights of the NN based on the rewards and noise gathered
     """
@@ -155,46 +124,116 @@ def train_step(brain, batch_noise, batch_rewards, step_idx):
     s = np.std(norm_reward)
     if abs(s) > 1e-6:
         norm_reward /= s
-        
+
     weighted_noise = None
     for noise, reward in zip(batch_noise, norm_reward):
         if weighted_noise is None:
-            weighted_noise = [reward * p_n for p_n in noise]
+            weighted_noise = [(W*reward* p_n) + ((1-W)*novelty*p_n) for p_n in noise]  # combining reward and novelty
         else:
             for w_n, p_n in zip(weighted_noise, noise):
-                w_n += reward * p_n
-        
+                w_n += (W*reward* p_n) + ((1-W)*novelty*p_n)
 
-    for p, p_update in zip(brain.get_weights(), weighted_noise):
+
+    for p, p_update in zip(brain.parameters(), weighted_noise):
         update = p_update / (len(batch_reward)*NOISE_STD)
-        p += LR * update
-        
+        p.data += LR * update
 
-def test_current_params(env, brain):
+
+def test_current_params(env, net):
     """
     Runs the current network parameters on the env to visually monitor the progress.
     """
     state = env.reset()
-    
+
     while True:
         env.render()
-        state = np.expand_dims(state, axis=0)
-        action_mean = brain.predict(state)
-        action = np.random.normal(action_mean, scale=0.01)
-        action = np.clip(action, -1, 1)  # pendulums action range is between -2,2  
-        state, reward, done, _ = env.step(action)
+        state = torch.from_numpy(state).unsqueeze(0).float()
+        probs = brain(state)
+        action = probs.max(dim = 1)[1]
+        state, reward, done, _ = env.step(action.data.numpy()[0])
 
         if done:
             break
-        
-        
+
+def get_behavior_char(env, net):
+    """
+    Returns the initial behavior characterization value b_pi0 for a network.
+    The value is defined in this case as the final state of agent in the environment.
+    
+    >>> Important to find a good behavior characterization. Depents on the environment! <<< -> final state, step count ... 
+    
+    """
+    state = env.reset()
+    step_count = 0
+    while True:
+        state = torch.from_numpy(state).unsqueeze(0).float()
+        probs = brain(state)
+        action = probs.max(dim = 1)[1]
+        state, reward, done, _ = env.step(action.data.numpy()[0])
+        step_count += 1
+        if done:
+            break
+    #print(step_count)
+    return  np.array([step_count]) #state 
+
+
+def get_kNN(archive, bc, n_neighbors):
+    """
+    Searches and samples the K-nearest-neighbors from the archive and a new behavior characterization
+    returns the summed distance between input behavior characterization and the bc in the archive
+    
+    """
+
+    archive = np.concatenate(archive)
+    neigh = NearestNeighbors(n_neighbors=n_neighbors)
+    neigh.fit(archive)
+    distances, idx = neigh.kneighbors(X = bc, n_neighbors=n_neighbors)
+    #k_nearest_neighbors = archive[idx].squeeze(0)
+
+    return sum(distances.squeeze(0))
+    
+    
+
+# =============================================================================
+# def calc_novelty(b_pi_theta, archive):
+#     """
+#     calculates the novelty of a given arcive of behavior characterizations.
+#     returns the mean distance between the initial behavior characterizations and all new gathered behavior characterizations.
+#     """
+#     # distance loss function:
+#     distance = nn.MSELoss() #nn.PairwiseDistance()
+#     # creates arcive vector for distance calc
+#     archive_v = torch.cat(archive)
+#     # create a vector of initial behavior characterizations in the shape of the arcive length
+#     b_pi_theta_v = torch.cat([b_pi_theta for i in range(len(archive))])
+# 
+#     return torch.sqrt(distance(b_pi_theta_v, archive_v)).mean()
+# =============================================================================
+
+def calc_noveltiy_distribution(novelties):
+    """
+    Calculates the probabilities of each model parameters of being selected as its
+    novelty normalized by the sum of novelty across all policies:
+    P(theta_m) for each element in the meta_population M - m element M
+    """
+    probabilities = [round((novel/(sum(novelties))),4) for novel in novelties]
+    return probabilities
+
+
 if __name__ == "__main__":
 
     env = gym.make(ENV_NAME)
     #env.seed(2)
-    brain = Model(env.observation_space.shape[0], env.action_space.shape[0])
+    MPS = 2 # meta population size
+    meta_population = [Model(env.observation_space.shape[0],env.action_space.n, idx=i) for i in range(MPS)]
 
-    iterations = 1500 #1500 # max iterations to run 
+    # create arcive for models
+    archive = []
+    writer = SummaryWriter()
+    iterations = 300 #1500 # max iterations to run
+
+    delta_reward_buffer = deque(maxlen=10)  # buffer to store the reward gradients to see if rewards stay constant over a defined time horizont ~> local min
+    W = 1
 
     params_queues = [mp.Queue(maxsize=1) for _ in range(PROCESSES_COUNT)]
     rewards_queue = mp.Queue(maxsize=ITERS_PER_UPDATE)
@@ -212,9 +251,40 @@ if __name__ == "__main__":
     reward_min = []
     reward_std = []
 
+    old_m_reward = 0
+
     for step_idx in range(iterations):
+
+        ########################## NOVELTY BRAIN SELECTION #############################
+        # select new network from the meta population based on its probability:
+        if len(archive) > 0:
+            novelties = []
+            S = np.minimum(K_NEIGHBORS, len(archive))
+            for model in meta_population:
+                b_pi_theta = torch.from_numpy(get_behavior_char(env, model)).unsqueeze(0).float()
+                distance = get_kNN(archive, b_pi_theta.numpy(), S)
+                novelty = distance / S
+                if novelty <= 1e-3:
+                    novelty = 5e-3
+                novelties.append(novelty)
+
+            #print("novelties:", novelties)
+            
+            probs = calc_noveltiy_distribution(novelties)
+            #print("probs: ", probs )
+            probs = np.array(probs)
+            probs /= probs.sum()   # norm so that sum up to one - does without as well but np gives error because of rounding
+            brain_idx = np.random.choice(list(range(MPS)),p=probs) # select new brain based on novelty probabilities
+            brain = meta_population[brain_idx]
+            novelty = novelties[brain_idx]
+        else:
+            brain_idx = np.random.randint(0, MPS)
+            brain = meta_population[brain_idx]
+            novelty = 1
+        ###################################################################################
+
         # broadcasting network params
-        params = brain.get_weights()
+        params = brain.state_dict()
         for q in params_queues:
             q.put(params)
 
@@ -223,8 +293,9 @@ if __name__ == "__main__":
         batch_steps_data = []
         batch_steps = 0
         results = 0
-        
-        while True: 
+
+        while True:
+            #print(rewards_queue.qsize())
             while not rewards_queue.empty():
                 reward = rewards_queue.get_nowait()
                 np.random.seed(reward.seed) # sets the seed of the current worker rewards
@@ -241,32 +312,39 @@ if __name__ == "__main__":
 
         step_idx += 1
         m_reward = np.mean(batch_reward)
-        reward_history.append(m_reward)
-        reward_max.append(np.max(batch_reward))
-        reward_min.append(np.min(batch_reward))
-        reward_std.append(np.std(batch_reward))
+
+        reward_gradient_mean = np.mean(delta_reward_buffer)
+        r_koeff = abs(m_reward - reward_gradient_mean)
+        # if last few rewards are almost konstant -> stuck in loc minima -> decrease W for exploration: higher novelty weight
+        if r_koeff < 1.5:
+            W = np.maximum(0, W-0.05)
+        else:
+            W = np.minimum(1, W+0.05)
+        delta_reward_buffer.append(m_reward)
+        old_m_reward = m_reward
+
+        writer.add_scalar("mean_reward", np.mean(batch_reward), step_idx)
+        writer.add_scalar("max_reward", np.max(batch_reward), step_idx)
+        writer.add_scalar("min_reward", np.min(batch_reward), step_idx)
+        writer.add_scalar("std", np.std(batch_reward), step_idx)
+        writer.add_scalar("novelty", novelty, step_idx)
+        writer.add_scalar("novelty_w", W, step_idx)
 # =============================================================================
 #         if m_reward > -250:
 #             print("\nSolved the environment in {} steps".format(step_idx))
 #             break
 # =============================================================================
-        train_step(brain, batch_noise, batch_reward, step_idx)
+        train_step(brain, novelty, batch_noise, batch_reward, step_idx)
+        # select new behavior:
+        b_pix = torch.from_numpy(get_behavior_char(env, brain)).unsqueeze(0).float()
+        # append new behavior to specific brain archive
+        archive.append(b_pix.numpy())
 
-        print("\rStep: {}, Mean_Reward: {:.2f}".format(step_idx, m_reward), end = "", flush = True)
-        
-        if step_idx % 10 == 0:
-            test_current_params(env, brain)
+        print("\rStep: {}, Mean_Reward: {:.2f}, Novelty: {:.2f}, W: {:.2f} r_koeff: {:.2f}".format(step_idx, m_reward, novelty, W, r_koeff), end = "", flush = True)
+
+#        if step_idx % 10 == 0:
+#            test_current_params(env, brain)
 
     for worker, p_queue in zip(workers, params_queues):
         p_queue.put(None)
         worker.join()
-
-    plt.figure(figsize = (11,7))
-    plt.plot(reward_history, label = "Mean Reward", color = "green")
-    plt.plot(reward_max, label = "Max Reward", color = "blue")
-    plt.plot(reward_min, label = "Min Reward", color = "red")
-    plt.plot(reward_std, label = "Reward std", color = "orange")
-    plt.xlabel("Steps")
-    plt.ylabel("Rewards")
-    plt.legend()
-    plt.show()

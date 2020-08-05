@@ -189,7 +189,7 @@ class RolloutStorage(BaseBuffer):
         last_value = last_value.clone().cpu().numpy().flatten()
         last_gae_lam = 0
 
-        self.int_rewards = (self.int_rewards - np.mean(self.int_rewards)) / (np.std(self.int_rewards) + 1e-8)
+        #self.int_rewards = (self.int_rewards - np.mean(self.int_rewards)) / (np.std(self.int_rewards) + 1e-8)
 
         # Normalizing the rewards:
         #self.rewards = (self.rewards - np.mean(self.rewards)) / (np.std(self.rewards) + 1e-5)
@@ -202,38 +202,6 @@ class RolloutStorage(BaseBuffer):
                 next_non_terminal = 1.0 - self.masks[step + 1]
                 next_value = self.values[step + 1]
             delta = self.rewards[step] + self.int_rewards[step] + self.gamma * next_value * next_non_terminal - self.values[step]
-            last_gae_lam = delta + self.gamma * self.gae_lam * next_non_terminal * last_gae_lam
-            self.advantages[step] = last_gae_lam
-        self.returns = self.advantages + self.values
-
-    def compute_intrinsicreturns_and_advantages(self, last_value, dones, int_rewards):
-        """
-        Post-processing step: compute the returns (sum of discounted rewards)
-        and GAE advantage.
-        Adapted from Stable-Baselines PPO2.
-        Uses Generalized Advantage Estimation (https://arxiv.org/abs/1506.02438)
-        to compute the advantage. To obtain vanilla advantage (A(s) = R - V(S))
-        where R is the discounted reward with value bootstrap,
-        set ``gae_lambda=1.0`` during initialization.
-
-        :param last_value: (th.Tensor)
-        :param dones: (np.ndarray)
-        """
-
-        last_value = last_value.clone().cpu().numpy().flatten()
-        last_gae_lam = 0
-
-        # Normalizing the rewards:
-        #self.rewards = (self.rewards - np.mean(self.rewards)) / (np.std(self.rewards) + 1e-5)
-
-        for step in reversed(range(self.buffer_size)):
-            if step == self.buffer_size - 1:
-                next_non_terminal = 1.0 - dones
-                next_value = last_value
-            else:
-                next_non_terminal = 1.0 - self.masks[step + 1]
-                next_value = self.values[step + 1]
-            delta = self.rewards[step] + self.gamma * next_value * next_non_terminal - self.values[step]
             last_gae_lam = delta + self.gamma * self.gae_lam * next_non_terminal * last_gae_lam
             self.advantages[step] = last_gae_lam
         self.returns = self.advantages + self.values

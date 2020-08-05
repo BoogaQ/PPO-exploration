@@ -8,9 +8,12 @@ import torch.optim as optim
 import numpy as np
 
 class Policy():
-    def __init__(self, state_dim, action_dim, hidden_size):
+    def __init__(self, state_dim, action_dim, hidden_size, intrinsic_model = False):
 
-        self.net = MlpDiscrete(state_dim, action_dim, hidden_size = hidden_size)
+        if intrinsic_model:
+            self.net = MlpIntDiscrete(state_dim, action_dim, hidden_size = hidden_size)
+        else:
+            self.net = MlpDiscrete(state_dim, action_dim, hidden_size = hidden_size)
 
     def act(self, obs):
         return self.net.act(obs)
@@ -311,12 +314,10 @@ class ForwardModel(nn.Module):
 class FeatureExtractor(nn.Module):
     def __init__(self, space_dims, hidden_size):
         super(FeatureExtractor, self).__init__()
-        self.fc1 = nn.Linear(space_dims, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc = nn.Linear(space_dims, hidden_size)
         
     def forward(self, x):
-        y = nn.ReLU(self.fc1(x))
-        y = torch.tanh(self.fc2(y))
+        y = torch.tanh(self.fc(x))
         return y
 
     

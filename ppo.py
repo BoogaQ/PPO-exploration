@@ -101,11 +101,12 @@ class PPO(BaseAlgorithm):
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1,
-                max_grad_norm = 0.2):   
+                max_grad_norm = 0.2,
+                hidden_size = 128):   
         super(PPO, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
      
 
-        self.policy = Policy(self.state_dim, self.action_dim)
+        self.policy = Policy(self.state_dim, self.action_dim, hidden_size)
         self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.action_space, gae_lam = gae_lam)
         self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
 
@@ -242,7 +243,8 @@ class PPO_RND(PPO):
                 int_vf_coef = 1.0,
                 max_grad_norm = 0.5,
                 rnd_start = 1e+3,
-                hidden_size = 128):              
+                hidden_size = 128,
+                rnd_hidden_size = 32):              
         super(PPO, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm) 
         
         
@@ -251,8 +253,8 @@ class PPO_RND(PPO):
         self.int_gae_lam = int_gae_lam
         self.rnd_start = rnd_start
 
-        self.policy = Policy(self.state_dim, self.action_dim, hidden_size = hidden_size)
-        self.rnd = RndNetwork(env.observation_space.shape[0])
+        self.policy = Policy(self.state_dim, self.action_dim, hidden_size = hidden_size, intrinsic_model = True)
+        self.rnd = RndNetwork(env.observation_space.shape[0], hidden_size = hidden_size)
         self.rollout = IntrinsicBuffer(nstep, self.num_envs, env.observation_space, env.action_space, gae_lam = gae_lam, int_gae_lam = int_gae_lam)
         self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
         self.rnd_optimizer = optim.Adam(self.rnd.parameters(), lr = lr)  
@@ -441,6 +443,7 @@ class PPO_ICM(BaseAlgorithm):
     def __init__(self, *, 
                 env, 
                 lr = 3e-4, 
+                icm_lr = 3e-4,
                 nstep = 128, 
                 batch_size = 128, 
                 n_epochs = 4, 
@@ -463,7 +466,7 @@ class PPO_ICM(BaseAlgorithm):
         self.inverse_model = InverseModel(1, icm_hidden_size)
 
         self.icm_params = list(self.feature_extractor.parameters()) + list(self.forward_model.parameters()) + list(self.inverse_model.parameters())
-        self.icm_optimizer = optim.Adam(self.icm_params, lr = lr)
+        self.icm_optimizer = optim.Adam(self.icm_params, lr = icm_lr)
         
         self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
 
