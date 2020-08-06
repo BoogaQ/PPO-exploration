@@ -47,8 +47,9 @@ class BaseAlgorithm(ABC):
         
         self.num_envs = env.num_envs if isinstance(env, VecEnv) else 1
 
-        self.action_space = env.action_space
-        self.action_dim = self.action_space.n if self.action_space.__class__.__name__ == "Discrete" else self.action_space.shape[0]
+        self.action_type = self.env.action_space.__class__.__name__
+        self.action_dim = 1 if self.action_type == "Discrete" else self.env.action_space.shape[0]
+        self.num_actions = self.env.action_space.n if self.action_type== "Discrete" else self.env.action_space.shape[0]
         self.state_dim = env.observation_space.shape[0]
 
     @abstractmethod
@@ -95,9 +96,9 @@ class PPO(BaseAlgorithm):
                 lr = 3e-4, 
                 nstep = 128, 
                 batch_size = 128, 
-                n_epochs = 4, 
+                n_epochs = 10, 
                 gamma = 0.99, 
-                gae_lam = 0.9, 
+                gae_lam = 0.95, 
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1,
@@ -106,9 +107,9 @@ class PPO(BaseAlgorithm):
         super(PPO, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
      
 
-        self.policy = Policy(self.state_dim, self.action_dim, hidden_size)
-        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.action_space, gae_lam = gae_lam)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
+        self.policy = Policy(env, hidden_size)
+        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.env.action_space, gae_lam = gae_lam)
+        self.optimizer = optim.Adam(list(self.policy.parameters()) + list(self.policy.net.parameters()), lr = lr)  
 
         self.last_obs = self.env.reset()
 
@@ -124,13 +125,17 @@ class PPO(BaseAlgorithm):
                 # Convert to pytorch tensor
                 actions, values, log_probs = self.policy.act(self.last_obs)
             
-            actions = actions.cpu().numpy()
+            actions = actions.numpy() 
             obs, rewards, dones, infos = self.env.step(actions)
             if any(dones):
                 self.num_episodes += sum(dones)
             rollout_step += 1
             self.num_timesteps += self.num_envs
             self.update_info_buffer(infos)
+
+            actions = actions.reshape(self.num_envs, self.action_dim)
+            log_probs = log_probs.reshape(self.num_envs, self.action_dim)
+            
             self.rollout.add(self.last_obs, actions, rewards, values, dones, log_probs)
             self.last_obs = obs
 
@@ -143,8 +148,8 @@ class PPO(BaseAlgorithm):
 
         for epoch in range(self.n_epochs):
             for batch in self.rollout.get(self.batch_size):
-                observations = batch.observations
-                actions = batch.actions.long().flatten()
+                observations =  batch.observations
+                actions =       batch.actions
                 old_log_probs = batch.old_log_probs
                 old_values =    batch.old_values
                 advantages =    batch.advantages
@@ -155,6 +160,7 @@ class PPO(BaseAlgorithm):
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                 ratio = torch.exp(action_log_probs - old_log_probs)
+
 
                 policy_loss_1 = advantages * ratio
                 policy_loss_2 = advantages * torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
@@ -253,7 +259,7 @@ class PPO_RND(PPO):
         self.int_gae_lam = int_gae_lam
         self.rnd_start = rnd_start
 
-        self.policy = Policy(self.state_dim, self.action_dim, hidden_size = hidden_size, intrinsic_model = True)
+        self.policy = Policy(env, hidden_size = hidden_size, intrinsic_model = True)
         self.rnd = RndNetwork(env.observation_space.shape[0], hidden_size = hidden_size)
         self.rollout = IntrinsicBuffer(nstep, self.num_envs, env.observation_space, env.action_space, gae_lam = gae_lam, int_gae_lam = int_gae_lam)
         self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
@@ -290,6 +296,9 @@ class PPO_RND(PPO):
             else:
                 int_rewards = self.rnd.int_reward(self.last_obs).detach().numpy()
 
+            actions = actions.reshape(self.num_envs, self.action_dim)
+            log_probs = log_probs.reshape(self.num_envs, self.action_dim)
+
             self.rollout.add(self.last_obs, actions, rewards, int_rewards, ext_values, int_values, dones, log_probs)
 
             self.last_obs = obs
@@ -308,7 +317,7 @@ class PPO_RND(PPO):
 
         for epoch in range(self.n_epochs):
             for batch in rollout.get(self.batch_size):
-                actions =           batch.actions.long().flatten()
+                actions =           batch.actions.long()
                 old_log_probs =     batch.old_log_probs
                 ext_advantages =    batch.advantages
                 int_advantages =    batch.int_advantages
@@ -339,7 +348,6 @@ class PPO_RND(PPO):
                 int_value_loss = F.mse_loss(int_returns, int_values).mean()
                 int_value_loss_clipped = F.mse_loss(int_returns, int_values_clipped)
                 intrinsic_loss = torch.max(int_value_loss, int_value_loss_clipped).mean()
-
 
                 if entropy is None:
                     entropy_loss = -action_log_probs.mean()
@@ -373,7 +381,7 @@ class PPO_RND(PPO):
                 obs = batch.observations #self.rew_norm_and_clip(batch.observations.numpy())
                 pred, target = self.rnd(obs)
 
-                loss = F.mse_loss(pred, target).mean()
+                loss = F.mse_loss(pred, target)
 
                 self.rnd_optimizer.zero_grad()
                 loss.backward()
@@ -446,24 +454,26 @@ class PPO_ICM(BaseAlgorithm):
                 icm_lr = 3e-4,
                 nstep = 128, 
                 batch_size = 128, 
-                n_epochs = 4, 
+                n_epochs = 10, 
                 gamma = 0.99, 
-                gae_lam = 0.9, 
+                gae_lam = 0.95, 
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1,
+                int_vf_coef = 1.0,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
                 icm_hidden_size = 32):   
         super(PPO_ICM, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
      
+        self.int_vc_coef = int_vf_coef
 
-        self.policy = Policy(self.state_dim, self.action_dim, hidden_size)
-        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.action_space, gae_lam = gae_lam)
+        self.policy = Policy(env, hidden_size)
+        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.env.action_space, gae_lam = gae_lam)
 
-        self.feature_extractor = FeatureExtractor(self.state_dim, icm_hidden_size)
-        self.forward_model = ForwardModel(self.action_dim, icm_hidden_size)
-        self.inverse_model = InverseModel(1, icm_hidden_size)
+        self.feature_extractor = Encoder(self.state_dim, icm_hidden_size)
+        self.forward_model = ForwardModel(self.num_actions, icm_hidden_size, self.action_type)
+        self.inverse_model = InverseModel(self.action_dim, icm_hidden_size)
 
         self.icm_params = list(self.feature_extractor.parameters()) + list(self.forward_model.parameters()) + list(self.inverse_model.parameters())
         self.icm_optimizer = optim.Adam(self.icm_params, lr = icm_lr)
@@ -485,9 +495,9 @@ class PPO_ICM(BaseAlgorithm):
             with torch.no_grad():
                 # Convert to pytorch tensor
                 actions, values, log_probs = self.policy.act(self.last_obs)
-            
-            actions = actions.cpu().numpy()
-            obs, rewards, dones, infos = self.env.step(actions)
+
+            obs, rewards, dones, infos = self.env.step(actions.numpy())
+
             if any(dones):
                 self.num_episodes += sum(dones)
             rollout_step += 1
@@ -499,7 +509,17 @@ class PPO_ICM(BaseAlgorithm):
             next_feature_hat = self.forward_model(actions, current_features)
             int_reward = (next_feature_hat - next_feature).pow(2).mean(dim=1)
 
-            self.rollout.add(self.last_obs, actions, rewards, values, dones, log_probs, int_reward.detach())
+            actions = actions.reshape(self.num_envs, self.action_dim)
+            log_probs = log_probs.reshape(self.num_envs, self.action_dim)
+
+            self.rollout.add(self.last_obs, 
+                            actions, 
+                            rewards, 
+                            values, 
+                            dones, 
+                            log_probs, 
+                            int_reward.detach())
+
             self.last_obs = obs
 
         self.rollout.compute_returns_and_advantages(values, dones=dones)
@@ -511,8 +531,8 @@ class PPO_ICM(BaseAlgorithm):
 
         for epoch in range(self.n_epochs):
             for batch in self.rollout.get(self.batch_size):
-                observations = batch.observations
-                actions = batch.actions.long().flatten()
+                observations =  batch.observations
+                actions =       batch.actions
                 old_log_probs = batch.old_log_probs
                 old_values =    batch.old_values
                 advantages =    batch.advantages
@@ -521,7 +541,6 @@ class PPO_ICM(BaseAlgorithm):
                 state_values, action_log_probs, entropy = self.policy.evaluate(observations, actions)
 
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
                 ratio = torch.exp(action_log_probs - old_log_probs)
 
                 # Surrogate loss
@@ -539,16 +558,16 @@ class PPO_ICM(BaseAlgorithm):
 
                 current_features = self.feature_extractor(observations[:-1])
                 next_features = self.feature_extractor(observations[1:])
-                next_features_hat = self.forward_model(actions[:-1], current_features)
+                next_features_hat = self.forward_model(actions.flatten()[:-1], current_features)
                 action_hat = self.inverse_model(torch.cat([current_features, next_features], dim = -1))
 
                 forward_loss = F.mse_loss(next_features, next_features_hat)
-                inverse_loss = F.mse_loss(actions[:-1], action_hat.squeeze())
+                inverse_loss = F.mse_loss(actions[:-1], action_hat)
                 icm_loss = inverse_loss + forward_loss
 
                 entropy_loss = -torch.mean(entropy)
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss +  icm_loss
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss +  self.int_vc_coef * icm_loss
 
                 self.optimizer.zero_grad()
                 self.icm_optimizer.zero_grad()

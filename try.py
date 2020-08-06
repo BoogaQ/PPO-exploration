@@ -14,12 +14,15 @@ import numpy as np
 
 import gym
 from stable_baselines3.common.cmd_util import make_vec_env
-from stable_baselines3.common.vec_env import vec_normalize, SubprocVecEnv
-
+from stable_baselines3.common.vec_env import vec_normalize
 import pybulletgym
 
-if __name__ == '__main__':
-    env = make_vec_env("BipedalWalker-v3", 4, vec_env_cls = SubprocVecEnv)
+if __name__ == "__main__":
+    env = make_vec_env("Pendulum-v0", 4, vec_env_cls = SubprocVecEnv)
     env = VecNormalize(env)
-    model = PPO(env = env, lr = 0.0005, nstep = 32, batch_size = 32, hidden_size = 256, n_epochs = 3)
+
+    model = PPO(env = env, lr = 0.0003, nstep = 128, batch_size = 128, max_grad_norm = 1, 
+                    hidden_size = 32)
     model.learn(total_timesteps = 1e+7, log_interval = 10)
+
+

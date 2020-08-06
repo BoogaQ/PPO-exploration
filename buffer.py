@@ -100,9 +100,10 @@ class BaseBuffer(object):
             (may be useful to avoid changing things be reference)
         :return: (th.Tensor)
         """
+ 
         if copy:
-            return torch.tensor(array).to(self.device)
-        return torch.as_tensor(array).to(self.device)
+            return torch.tensor(array)
+        return torch.as_tensor(array)
 
     @staticmethod
     def _normalize_obs(obs,
@@ -138,12 +139,12 @@ class RolloutStorage(BaseBuffer):
 
     def reset(self):
         self.observations =     np.zeros((self.buffer_size, self.n_envs, *self.obs_shape), dtype = 'float32')
-        self.actions =          np.zeros((self.buffer_size, self.n_envs))
+        self.actions =          np.zeros((self.buffer_size, self.n_envs, self.action_dim))
         self.rewards =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.int_rewards =      np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.values =           np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.returns =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
-        self.action_log_probs = np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
+        self.action_log_probs = np.zeros((self.buffer_size, self.n_envs, self.action_dim), dtype = 'float32')
         self.masks =            np.ones((self.buffer_size, self.n_envs), dtype = 'long')
         self.advantages =       np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.generator_ready = False
@@ -230,8 +231,8 @@ class RolloutStorage(BaseBuffer):
         data = (self.observations[batch_inds],
                 self.actions[batch_inds],
                 self.values[batch_inds].flatten(),
-                self.action_log_probs[batch_inds].flatten(),
-                self.advantages[batch_inds].flatten(),
+                self.action_log_probs[batch_inds],
+                self.advantages[batch_inds],
                 self.returns[batch_inds].flatten())
         return self.RolloutSample(*tuple(map(self.to_torch, data)))
 
@@ -347,9 +348,9 @@ class IntrinsicBuffer(RolloutStorage):
                 self.actions[batch_inds],
                 self.values[batch_inds].flatten(),
                 self.int_values[batch_inds].flatten(),
-                self.action_log_probs[batch_inds].flatten(),
-                self.advantages[batch_inds].flatten(),
-                self.int_advantages[batch_inds].flatten(),
+                self.action_log_probs[batch_inds],
+                self.advantages[batch_inds],
+                self.int_advantages[batch_inds],
                 self.returns[batch_inds].flatten(),
                 self.int_returns[batch_inds].flatten())
         return self.RolloutSample(*tuple(map(self.to_torch, data)))
