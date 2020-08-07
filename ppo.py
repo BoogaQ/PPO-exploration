@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 
 from collections import deque
 
-from stable_baselines3.common import logger
+import logger
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 
 class BaseAlgorithm(ABC):
@@ -109,9 +109,10 @@ class PPO(BaseAlgorithm):
 
         self.policy = Policy(env, hidden_size)
         self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.env.action_space, gae_lam = gae_lam)
-        self.optimizer = optim.Adam(list(self.policy.parameters()) + list(self.policy.net.parameters()), lr = lr)  
+        self.optimizer = optim.RMSprop(self.policy.net.parameters(), lr = lr)  
 
         self.last_obs = self.env.reset()
+
 
     def collect_samples(self):
 
@@ -198,18 +199,14 @@ class PPO(BaseAlgorithm):
         iteration = 0
 
         while self.num_timesteps < total_timesteps:
-            progress = round(self.num_timesteps/total_timesteps * 100, 2)
             self.collect_samples()
             
             iteration += 1
             if log_interval is not None and iteration % log_interval == 0:
-                logger.record("Progress", str(progress)+'%')
                 logger.record("time/total timesteps", self.num_timesteps)
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
                     logger.record("rollout/ep_rew_mean",
                                   np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-                    logger.record("rollout/ep_len_mean",
-                                  np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
                     logger.record("rollout/num_episodes", self.num_episodes)
                 fps = int(self.num_timesteps / (time.time() - start_time))
                 logger.record("time/total_time", (time.time() - start_time))
@@ -217,13 +214,10 @@ class PPO(BaseAlgorithm):
 
             self.train()
 
-        logger.record("Complete", '')
         logger.record("time/total timesteps", self.num_timesteps)
         if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
             logger.record("rollout/ep_rew_mean",
                             np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-            logger.record("rollout/ep_len_mean",
-                            np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
             logger.record("rollout/num_episodes", self.num_episodes)
         fps = int(self.num_timesteps / (time.time() - start_time))
         logger.record("time/total_time", (time.time() - start_time))
@@ -262,8 +256,8 @@ class PPO_RND(PPO):
         self.policy = Policy(env, hidden_size = hidden_size, intrinsic_model = True)
         self.rnd = RndNetwork(env.observation_space.shape[0], hidden_size = hidden_size)
         self.rollout = IntrinsicBuffer(nstep, self.num_envs, env.observation_space, env.action_space, gae_lam = gae_lam, int_gae_lam = int_gae_lam)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
-        self.rnd_optimizer = optim.Adam(self.rnd.parameters(), lr = lr)  
+        self.optimizer = optim.RMSprop(self.policy.parameters(), lr = lr)  
+        self.rnd_optimizer = optim.RMSprop(self.rnd.parameters(), lr = lr)  
 
         self.last_obs = self.env.reset()
 
@@ -476,9 +470,9 @@ class PPO_ICM(BaseAlgorithm):
         self.inverse_model = InverseModel(self.action_dim, icm_hidden_size)
 
         self.icm_params = list(self.feature_extractor.parameters()) + list(self.forward_model.parameters()) + list(self.inverse_model.parameters())
-        self.icm_optimizer = optim.Adam(self.icm_params, lr = icm_lr)
+        self.icm_optimizer = optim.RMSprop(self.icm_params, lr = icm_lr)
         
-        self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
+        self.optimizer = optim.RMSprop(self.policy.parameters(), lr = lr)  
 
         self.last_obs = self.env.reset()
 

@@ -1,0 +1,172 @@
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,time/total_time
+-1.4189385175704956,0.02174176038158183,1.9622039099534352,1.9697562854573354,512,1.4044992923736572
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.007103035294730231,0.7697095771630605,0.7626232275801089,1024,-1149.618931,4,1.9454543590545654
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.02412709813925658,0.035184945135066904,-0.0031315378818714077,1536,-1149.618931,4,2.429863691329956
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.006849593913229898,0.1117460010573268,0.09070702226641518,2048,-1095.659938875,8,3.0133581161499023
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.01859740341991407,1.996596356232961,2.0010043747751936,2560,-1178.2703183333333,12,3.616833209991455
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.01813400259957903,0.016755727274964254,0.02070034499686155,3072,-1178.2703183333333,12,4.169796705245972
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.010292070853038557,0.019693326903507113,0.015796012878863938,3584,-1220.05710175,16,4.732356548309326
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0004980558902478203,0.02286420847910146,0.009172879491667547,4096,-1167.9463119499999,20,5.265588283538818
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0003295435972283842,0.02999930363148451,0.016139462351031163,4608,-1167.9463119499999,20,5.818472146987915
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0012270504326384755,0.07904339178154866,0.06362695647122844,5120,-1141.1279374166668,24,6.340947151184082
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.006020796611904744,0.027043484849855304,0.0068333033602688276,5632,-1133.208608857143,28,6.932173252105713
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0076436768012283695,0.03480786752576629,0.01297480584685619,6144,-1133.208608857143,28,7.565632581710815
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.007806740761484633,0.04491774023820957,0.03853509612201246,6656,-1118.51223646875,32,8.164312601089478
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.003027891143444547,0.028048410390814144,0.010831134369687868,7168,-1118.51223646875,32,8.797790050506592
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0077009382681716134,0.026755416300147772,0.02026696969063765,7680,-1126.9198106111112,36,9.361043453216553
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.009648038323275182,1.7916667064030964,1.78712535984869,8192,-1122.1632241,40,9.922162532806396
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.008220464558927615,0.021448747254908085,-0.0009611021817012621,8704,-1122.1632241,40,10.497351169586182
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0019341012157238554,0.04298284867157539,0.030727565009617513,9216,-1127.113089590909,44,11.063090562820435
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.008220755905975397,1.8390797674655914,1.8331111384938852,9728,-1128.40864575,48,11.6362624168396
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.009117063739196301,0.026190263219177723,0.0028838146022996877,10240,-1128.40864575,48,12.199249505996704
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0032894233639708735,0.07363131331900756,0.05615250507735495,10752,-1128.148916903846,52,12.792764663696289
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.00426247788775911,0.02499149398257335,0.006539631217132506,11264,-1121.9652286607143,56,13.345458030700684
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.01571561614932155,0.02755575580522418,-0.0023492452217790997,11776,-1121.9652286607143,56,13.847771644592285
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.004273562724243586,0.023931229875112574,0.0054682822731872555,12288,-1132.1721195999999,60,14.42138385772705
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.008521613674673382,0.017639358683178823,0.01197158748017047,12800,-1137.162574953125,64,15.055233240127563
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0050720847652407945,0.021511105820536613,0.012393805708095675,13312,-1137.162574953125,64,15.58788251876831
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.008354456567640351,1.0541412482659023,1.03159740682058,13824,-1136.4533575147057,68,16.201451539993286
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.022044549488487834,0.012106640652442971,-0.024127293713726596,14336,-1136.4533575147057,68,16.784783601760864
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.00268320052347004,0.017471476496818166,0.0005988910956663922,14848,-1129.926895111111,72,17.39102840423584
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0029265759581430973,1.165087029337883,1.147971068502058,15360,-1121.3089143157895,76,17.923625230789185
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0026746055165127384,0.012706743010009328,0.0011919636488403349,15872,-1121.3089143157895,76,18.436063051223755
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.009045031149172262,0.022060776284585398,-0.0011736397422685962,16384,-1107.7201842375,80,19.049726247787476
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.004830725366389509,0.022431358539809782,0.003411248295738542,16896,-1109.640297547619,84,19.633220672607422
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.006685353648899887,0.024895601673051715,0.004020863146470097,17408,-1109.640297547619,84,20.22946548461914
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0010106816306128836,0.02407079019273321,0.008870723684438595,17920,-1109.711782375,88,20.81290340423584
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.001706528056690084,0.020709805345783632,0.004813892411411814,18432,-1109.583909945652,92,21.406354188919067
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0009494249001742019,0.0158096671414872,0.0006708573636312667,18944,-1109.583909945652,92,22.00990390777588
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.003853194665564628,0.022106099175289273,0.0040635196320429135,19456,-1113.7701588645834,96,22.621816158294678
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.011600317012642932,0.025084816617891192,-0.000704885272433471,19968,-1113.7701588645834,96,23.270556211471558
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0023821289390198405,0.034691194693247475,0.022883938754585584,20480,-1122.86736477,100,23.947271823883057
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.009532992970408953,2.0037660747766495,1.9800436969285589,20992,-1129.57066486,104,24.568469762802124
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0022437622740994166,0.025821891302863758,0.01387626869928144,21504,-1129.57066486,104,25.230777740478516
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0030651269727811057,0.024665536514172953,0.013541278609272326,22016,-1138.6718988699997,108,25.85649847984314
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.008173609954385985,2.116847962141037,2.110832187217741,22528,-1135.7036545899996,112,26.51092219352722
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0020714860495178963,0.011263921779269973,-0.004996949147929655,23040,-1135.7036545899996,112,27.144541263580322
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.00033644504982801676,0.03869182228421172,0.02416599235670196,23552,-1138.47033288,116,27.768613815307617
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.004960820083852814,0.014336105280866226,-0.004814099680668322,24064,-1153.67222369,120,28.331753253936768
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.009109754036678758,0.01563028626454373,-0.007668852649816759,24576,-1153.67222369,120,28.955511569976807
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.004185532369620252,0.016116314567625523,-0.0022586026796764616,25088,-1167.1223966999999,124,29.54409956932068
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,5.242351611031733e-05,0.01624023572852214,0.0021032743669507268,25600,-1180.96489896,128,30.15762948989868
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.003556517228155207,0.032654268046220146,0.014908365940383203,26112,-1180.96489896,128,30.789626836776733
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.002782213251874196,2.0949134528636932,2.0835062812378857,26624,-1197.0668402400001,132,31.35495162010193
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.013873958433137682,0.013663596628854672,-0.014399746681964741,27136,-1197.0668402400001,132,31.946176052093506
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.008830879648578866,0.013501371179396907,0.00814286595029404,27648,-1204.42017437,136,32.57061982154846
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0012499816616726122,2.33951802055041,2.3265786173344005,28160,-1209.06855993,140,33.1661102771759
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0012160401299072356,0.007939107754888633,-0.007466317252700333,28672,-1209.06855993,140,33.78794002532959
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.011547174332671092,0.020592684935157497,-0.005143874275195327,29184,-1211.7521613699998,144,34.40422749519348
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.007375932247039055,0.009541353210806847,-0.012023963913913941,29696,-1219.6160932900002,148,35.0508553981781
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.00766944391783431,0.011051768631053468,-0.010807060164462576,30208,-1219.6160932900002,148,35.634188413619995
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,5.732781005282859e-05,0.014106885879300535,-2.517118832836886e-05,30720,-1223.8358242900001,152,36.23774981498718
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0041557436891484405,0.011113100918009877,-0.007232027648820294,31232,-1224.7335878499998,156,36.84110617637634
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0032189502388314775,0.011822238060024878,0.0008518034211746229,31744,-1224.7335878499998,156,37.42502164840698
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.00500705655623099,0.023383433930575848,0.004186992496663125,32256,-1213.9111370500002,160,37.97563672065735
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0023978150349518693,0.010697549441829324,-0.005889650470804277,32768,-1213.9111370500002,160,38.47284698486328
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,6.519456269674471e-05,0.016998670529574156,0.002874480214589168,33280,-1216.6436400900002,164,39.096055030822754
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0024836435862316455,0.9152690867582957,0.9035633454668456,33792,-1209.9567508100001,168,39.757620334625244
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.016591782236985333,0.01542572358933588,-0.015355443525331186,34304,-1209.9567508100001,168,40.37302327156067
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0033947849051350278,0.014152545481920242,0.0033579455093735375,34816,-1204.2144980700002,172,41.034812211990356
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.005080387839158622,1.1624711155891418,1.1432013428723016,35328,-1210.49889601,176,41.60011053085327
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0028836606436462493,0.01380572149840494,0.002499997264369457,35840,-1210.49889601,176,42.2036669254303
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0006082185889468329,0.011567090405151248,-0.0020140758835836513,36352,-1222.71385456,180,42.7770516872406
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0003744296433561903,0.015394904340306917,0.0008310898192689953,36864,-1217.13781125,184,43.35009455680847
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.010359965197769053,0.015824977386121947,-0.008724372689328836,37376,-1217.13781125,184,43.943172216415405
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0026354153176612358,0.015917672542855144,0.004363702982834647,37888,-1232.10969174,188,44.526896476745605
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.008477360701445237,0.024475621913249295,0.0018088763341223251,38400,-1231.9092212100002,192,45.079689264297485
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0010957462479001267,0.008386670864031961,-0.006898460261549898,38912,-1231.9092212100002,192,45.71353554725647
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.002612524669156614,0.6429826617240906,0.6261807521772522,39424,-1226.96523015,196,46.32511281967163
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0011683623025038517,0.013188318504641453,-0.0021694286755441303,39936,-1226.96523015,196,46.93066596984863
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0007924271441179997,0.012798534356988966,-0.000598423376574766,40448,-1213.2013136100002,200,47.55694270133972
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.003406107515299362,1.2067454655965169,1.1959621882341347,40960,-1198.7725550000002,204,48.12990736961365
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0022200421293741544,0.011561185082731148,-0.004848241924324739,41472,-1198.7725550000002,204,48.68269658088684
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,0.0013139274541743606,0.013785737256209055,0.0009102798327016839,41984,-1195.49980185,208,49.28554677963257
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.009560059993879775,0.020691947157805163,-0.0030574977137563415,42496,-1196.26253133,212,49.89902472496033
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0018297860236897044,0.013769341943164667,-0.00224982895820677,43008,-1196.26253133,212,50.4948251247406
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.010280964630885346,0.0381176279236873,0.013647278415120222,43520,-1185.5376963100002,216,51.13659310340881
+train/entropy_loss,train/policy_gradient_loss,train/value_loss,train/total_loss,time/total timesteps,rollout/ep_rew_mean,rollout/num_episodes,time/total_time
+-1.4189385175704956,-0.0024251468179418696,0.01462070484800885,-0.0019938268476147503,44032,-1176.15677622,220,51.701350927352905
