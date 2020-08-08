@@ -53,7 +53,8 @@ class FeedForwardNetwork(object):
     def continuous_action(self, logits):
         mean = logits
         sd = np.ones(shape=mean.shape)
-        return np.random.normal(mean, sd)
+        return np.random.normal(mean, sd).squeeze()
+        #return mean.squeeze()
 
     def get_action(self, logits):
         if self.action_space == "Discrete":

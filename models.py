@@ -6,6 +6,11 @@ import torch.optim as optim
 
 import numpy as np
 
+# https://github.com/uvipen/Street-fighter-A3C-ICM-pytorch
+# https://github.com/adik993/ppo-pytorch
+# https://github.com/DLR-RM/stable-baselines3
+# https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail
+
 class Policy(nn.Module):
     def __init__(self, env, hidden_size, intrinsic_model = False):
         super(Policy, self).__init__()
@@ -132,8 +137,7 @@ class MlpNetwork(BaseNetwork):
         
         self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
                                     nn.Linear(hidden_size, hidden_size), nn.Tanh(),
-                                    )
-                            
+                                    )                       
 
         self.a1 = nn.Linear(hidden_size, output_size)
         self.c1 = nn.Linear(hidden_size, 1)
@@ -198,18 +202,20 @@ class RndNetwork(BaseNetwork):
         super(RndNetwork, self).__init__()
         
         self.predictor = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                                 nn.Tanh(),
+                                                 nn.LeakyReLU(negative_slope=2e-1),
                                                  nn.Linear(hidden_size, hidden_size),
-                                                 nn.Tanh(),
-                                                 nn.Linear(hidden_size, 1)
+                                                 nn.LeakyReLU(negative_slope=2e-1),
+                                                 nn.Linear(hidden_size, hidden_size)
                                                  )
         
         self.target = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                    nn.ELU(),
+                                    nn.LeakyReLU(negative_slope=2e-1),
                                     nn.Linear(hidden_size, hidden_size),
-                                    nn.ELU(),
+                                    nn.LeakyReLU(negative_slope=2e-1),
                                     nn.Linear(hidden_size, 1)
                                     )
+
+        self.pred1 = nn.Linear(hidden_size, 1)
         
         self.init_weights()
                 
@@ -221,6 +227,7 @@ class RndNetwork(BaseNetwork):
             x = torch.Tensor(x)
 
         predict = self.predictor(x)
+        predict = self.pred1(F.leaky_relu(predict))
         target = self.target(x)
         return predict, target
 
@@ -236,43 +243,63 @@ class RndNetwork(BaseNetwork):
         return int_rew
 
 
-class InverseModel(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super(InverseModel, self).__init__()
-        self.fc = nn.Linear(hidden_size*2, input_size)
+class IntrinsicCuriosityModule(BaseNetwork):
+    def __init__(self, input_size, action_converter, hidden_size):
+        super(IntrinsicCuriosityModule, self).__init__()
+  
+        self.action_converter = action_converter
+        self.feature_size = hidden_size
+        self.input_size = input_size
+
+        self.output_size = action_converter.action_output
+        self.n_actions = action_converter.num_actions
+
+
+        self.state_encoder = nn.Sequential(nn.Linear(input_size, hidden_size), nn.LeakyReLU(),
+                                           nn.Linear(hidden_size, hidden_size), nn.LeakyReLU())
+
+        self.forward_model = nn.Sequential(nn.Linear(self.n_actions + hidden_size, hidden_size),
+                                           nn.LeakyReLU(),
+                                           nn.Linear(hidden_size, hidden_size))
+
+        self.inverse_model = nn.Sequential(nn.Linear(hidden_size * 2, hidden_size),
+                                           nn.LeakyReLU(),
+                                           nn.Linear(hidden_size, self.n_actions))
         
-    def forward(self, features): # (1, hidden_size)
-        next_action = self.fc(features) # (1, input_size)
-        return next_action
-
-class ForwardModel(nn.Module):
-    def __init__(self, num_actions, hidden_size, action_type):
-        super(ForwardModel, self).__init__()
-        self.action_type = action_type
-        latent_space = 10
-
-        if action_type == "Discrete":
-            self.action_encoder = nn.Embedding(num_actions, latent_space)
+        if action_converter.action_type == "Discrete":
+            self.action_encoder = nn.Embedding(self.n_actions, self.n_actions)
         else:
-            self.action_encoder = nn.Linear(num_actions, latent_space)
+            self.action_encoder = nn.Linear(self.n_actions, self.output_size)
 
-        self.fc = nn.Linear(hidden_size+latent_space, hidden_size)
+        self.init_weights()
 
-        self.eye = torch.eye(num_actions)
-        
-    def forward(self, action, features):
-        action = self.action_encoder(action.float() if self.action_type == "Box" else action.long())
-        x = torch.cat([action, features], dim=-1) # (1, input_size+hidden_size)
-        next_features = self.fc(x) # (1, hidden_size)
-        return next_features
+    def forward(self, state, next_state, action):
+        action = self.action_encoder(action.float() if self.action_converter.action_type == "Box" else action.squeeze().long())
 
-class Encoder(nn.Module):
-    def __init__(self, space_dims, hidden_size):
-        super(Encoder, self).__init__()
-        self.fc = nn.Linear(space_dims, hidden_size)
-        
-    def forward(self, x):
-        y = torch.tanh(self.fc(x))
-        return y
+        state_ft = self.state_encoder(state)
+        next_state_ft = self.state_encoder(next_state)
+        next_state_ft = next_state_ft.view(-1, self.feature_size)
+
+        action_hat = self.inverse_model(torch.cat((state_ft, next_state_ft), 1))
+        next_state_hat = self.forward_model(torch.cat((state_ft, action), 1))
+        return action_hat, next_state_hat, next_state_ft
+
+    def int_reward(self, state, next_state, action):
+        action = self.action_encoder(action.float() if self.action_converter.action_type == "Box" else action.long())
+
+        state_ft = self.state_encoder(state)
+        next_state_ft = self.state_encoder(next_state)
+
+        next_state_hat = self.forward_model(torch.cat((state_ft, action), 1))
+
+        return (next_state_hat - next_state_ft).pow(2).mean()
+
+
+
+
+                
+
+
+    
 
     

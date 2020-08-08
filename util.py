@@ -1,4 +1,6 @@
 import numpy as np
+import torch.nn as nn
+import torch
 
 class RunningMeanStd(object):
     def __init__(self, epsilon = 1e-4, shape = ()):
@@ -33,3 +35,28 @@ class RunningMeanStd(object):
         self.mean = new_mean
         self.var = new_var
         self.count = new_count
+
+class ActionConverter():
+    def __init__(self, action_space):
+        self.action_type = action_space.__class__.__name__
+        if self.action_type == "Discrete":
+            self.num_actions = action_space.n
+            self.action_output = 1
+        elif self.action_type == "Box":
+            self.num_actions = action_space.shape[0]
+            self.action_output = self.num_actions
+
+    def get_loss(self):
+        if self.action_type == "Discrete":
+            loss = nn.CrossEntropyLoss()
+        elif self.action_type == "Box":
+            loss = nn.MSELoss()
+        return loss
+
+    def action(self, action):
+        if self.action_type == "Discrete":
+            return action.long()
+        elif self.action_type == "Box":
+            return action.float()
+            
+

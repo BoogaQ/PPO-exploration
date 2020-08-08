@@ -1,8 +1,10 @@
-from __future__ import print_function
+# Taken base code from https://github.com/alirezamika/evostra
 import numpy as np
 import multiprocessing as mp
 import itertools
 import time
+
+from sklearn.neighbors import NearestNeighbors
 
 np.random.seed(0)
 
@@ -42,6 +44,7 @@ class EvolutionStrategy(object):
         total_steps = 0
         for t in itertools.count():
             actions = self.model.predict(obs)
+
             obs, reward, done, info = env.step(actions)
             total_r += reward
             if done:
@@ -75,7 +78,6 @@ class EvolutionStrategy(object):
         std = rewards.std()
         if std == 0:
             return
-
         rewards = (rewards - rewards.mean()) / std
         for index, w in enumerate(self.weights):
             layer_population = np.array([p[index] for p in population])
@@ -83,13 +85,63 @@ class EvolutionStrategy(object):
             self.weights[index] = w + update_factor * np.dot(layer_population.T, rewards).T
         self.learning_rate *= self.decay
 
+    def get_behavior_char(self, weights, env):
+        """
+        Returns the initial behavior characterization value b_pi0 for a network.
+        The value is defined in this case as the final obs of agent in the environment.
+    
+        Important to find a good behavior characterization. Depents on the environment! <<< -> final obs, step count ... 
+        
+        """
+        self.model.set_weights(weights)
+        obs = env.reset()
+        step_count = 0     
+        while True:
+            actions = self.model.predict(obs)
+            obs, reward, done, info = env.step(actions)
+            step_count += 1
+            if done:
+                break
+        return  np.array([obs]) #obs 
+
+    def get_kNN(self, archive, bc, n_neighbors):
+        """
+        Searches and samples the K-nearest-neighbors from the archive and a new behavior characterization
+        returns the summed distance between input behavior characterization and the bc in the archive
+        
+        """
+
+        archive = np.concatenate(archive)
+        knn = NearestNeighbors(n_neighbors=n_neighbors)
+        knn.fit(archive)
+        distances, idx = knn.kneighbors(X = bc, n_neighbors=n_neighbors)
+        #k_nearest_neighbors = archive[idx].squeeze(0)
+
+        return sum(distances.squeeze(0))
+
+    def calc_noveltiy_distribution(self, novelties):
+        """
+        Calculates the probabilities of each model parameters of being selected as its
+        novelty normalized by the sum of novelty across all policies:
+        P(theta_m) for each element in the meta_population M - m element M
+        """
+        probabilities = [round((novel/(sum(novelties))),4) for novel in novelties]
+        return probabilities
+
+    def get_novelties(self)
+
     def run(self, iterations, print_step=1):
         pool = mp.Pool(self.num_threads) if self.num_threads > 1 else None
         start_time = time.time()
+        archive = []
         for iteration in range(iterations):
-
+        
             population = self._get_population()
             rewards = self._get_rewards(pool, population)
+
+            
+
+
 
             self._update_weights(rewards, population)
 

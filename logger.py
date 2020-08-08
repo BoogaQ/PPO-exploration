@@ -2,32 +2,10 @@ import csv
 import logging
 import sys
 import os
+import datetime
 
 from collections import defaultdict
 
-class CSVWriter():
-    def __init__(self, file_name):
-        self.file = open(file_name, 'wt')  
-        self.header = False
-    def write(self, key_values):    
-        write_dict = dict()
-        try:  
-            for key in sorted(key_values.keys()):
-                if key.find('/') > 0:
-                    write_dict[key.split('/')[1]] = key_values[key]
-                else:
-                    write_dict[key] = key_values[key]  
-            writer = csv.DictWriter(self.file, write_dict.keys())
-            if not self.header:
-                writer.writeheader()
-                self.header = True
-            else:
-                writer.writerow(write_dict)
-        except KeyboardInterrupt:
-            self.close()
-           
-    def close(self):
-        self.file.close()
 
 class CSVOutputFormat():
     def __init__(self, filename):
@@ -149,18 +127,16 @@ class HumanOutputFormat():
         if self.own_file:
             self.file.close()
 
-
 class Logger(object):
 
     DEFAULT = None
     CURRENT = None  
 
     def __init__(self, folder = './logs', file_name = 'progress.csv'):
-
         self.name_to_value = defaultdict(float) 
         self.dir = folder
-        self.file_name = file_name
-        self.outputs = [HumanOutputFormat(sys.stdout), CSVOutputFormat(file_name)]
+        self.file_name = os.path.join(folder, file_name)
+        self.outputs = [HumanOutputFormat(sys.stdout), CSVOutputFormat(self.file_name)]
 
     def record(self, key, value):
 
@@ -215,7 +191,6 @@ class Logger(object):
 
 Logger.CURRENT = Logger()
 
-
 def dump(step):
     """
     Write all of the diagnostics from the current iteration
@@ -232,3 +207,16 @@ def record(key, value):
     :param exclude: (str or tuple) outputs to be excluded
     """
     Logger.CURRENT.record(key, value)
+
+def configure(algorithm, environment, folder = None):
+
+    if folder is None:
+        folder = "./logs"
+    
+    folder = os.path.join(folder, algorithm, environment)
+    os.makedirs(folder, exist_ok=True)
+
+    file_name = "run" + datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S-%f") + ".csv"
+
+    Logger.CURRENT = Logger(folder=folder, file_name = file_name)
+    print(f"Logging to {folder}")

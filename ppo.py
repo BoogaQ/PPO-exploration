@@ -5,18 +5,36 @@ import torch.nn.functional as F
 import numpy as np
 from buffer import RolloutStorage, IntrinsicBuffer
 from models import *
-from util import RunningMeanStd
+from env import make_env
+from util import RunningMeanStd, ActionConverter
 
 import time
 from abc import ABC, abstractmethod
 
 from collections import deque
+import multiprocessing
 
 import logger
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 
 class BaseAlgorithm(ABC):
-    def __init__(self, env, 
+    """
+    Base algorithm class that each agent has to inherit from.
+    :param env_id: (str)            name of environment to perform training on
+    :param lr: (float)              learning rate
+    :param nstep: (int)             storage rollout steps
+    :param batch_size: (int)        batch size for training
+    :param n_epochs: (int)          number of training epochs
+    :param gamma: (float)           discount factor
+    :param gae_lam: (float)         lambda for generalized advantage estimation
+    :param clip_range: (float)      clip range for surrogate loss
+    :param ent_coef: (float)        entropy loss coefficient
+    :param vf_coef: (float)         value loss coefficient
+    :param max_grad_norm: (float)   max grad norm for optimizer
+
+    """
+    def __init__(self, 
+                env_id, 
                 lr, 
                 nstep, 
                 batch_size, 
@@ -27,7 +45,13 @@ class BaseAlgorithm(ABC):
                 ent_coef, 
                 vf_coef,
                 max_grad_norm):   
-        self.env = env
+
+        self.env_id = env_id
+        self.env = make_env(env_id, n_envs = multiprocessing.cpu_count())
+        self.num_envs = self.env.num_envs if isinstance(self.env, VecEnv) else 1
+        self.state_dim = self.env.observation_space.shape[0]
+        self.action_converter = ActionConverter(self.env.action_space)
+
         self.lr = lr
         self.nstep = nstep
         self.batch_size = batch_size
@@ -38,20 +62,13 @@ class BaseAlgorithm(ABC):
         self.ent_coef = ent_coef
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
+
+        self.ep_info_buffer = deque(maxlen=10)
+        self._n_updates = 0
         self.num_timesteps = 0 
         self.num_episodes = 0
 
-        self.ep_info_buffer = deque(maxlen=100)
-        self._n_updates = 0
-        self.device = torch.device('cpu')
         
-        self.num_envs = env.num_envs if isinstance(env, VecEnv) else 1
-
-        self.action_type = self.env.action_space.__class__.__name__
-        self.action_dim = 1 if self.action_type == "Discrete" else self.env.action_space.shape[0]
-        self.num_actions = self.env.action_space.n if self.action_type== "Discrete" else self.env.action_space.shape[0]
-        self.state_dim = env.observation_space.shape[0]
-
     @abstractmethod
     def collect_samples(self):
         """
@@ -74,7 +91,6 @@ class BaseAlgorithm(ABC):
         Initiate the learning process and return a trained model.
 
         """
-        logger.configure('./logs')
         raise NotImplementedError()
 
     def update_info_buffer(self, infos, dones = None):
@@ -90,9 +106,10 @@ class BaseAlgorithm(ABC):
             if maybe_ep_info is not None:
                 self.ep_info_buffer.extend([maybe_ep_info])
 
+
 class PPO(BaseAlgorithm):
     def __init__(self, *, 
-                env, 
+                env_id, 
                 lr = 3e-4, 
                 nstep = 128, 
                 batch_size = 128, 
@@ -104,41 +121,36 @@ class PPO(BaseAlgorithm):
                 vf_coef = 1,
                 max_grad_norm = 0.2,
                 hidden_size = 128):   
-        super(PPO, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
-     
+        super(PPO, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
 
-        self.policy = Policy(env, hidden_size)
-        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.env.action_space, gae_lam = gae_lam)
+        self.policy = Policy(self.env, hidden_size)
+        self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam)
         self.optimizer = optim.RMSprop(self.policy.net.parameters(), lr = lr)  
 
         self.last_obs = self.env.reset()
 
-
     def collect_samples(self):
-
-        assert self.last_obs is not None
-        
+        assert self.last_obs is not None    
         rollout_step = 0
         self.rollout.reset()
 
         while rollout_step < self.nstep:
             with torch.no_grad():
-                # Convert to pytorch tensor
                 actions, values, log_probs = self.policy.act(self.last_obs)
             
             actions = actions.numpy() 
             obs, rewards, dones, infos = self.env.step(actions)
             if any(dones):
                 self.num_episodes += sum(dones)
-            rollout_step += 1
             self.num_timesteps += self.num_envs
             self.update_info_buffer(infos)
 
-            actions = actions.reshape(self.num_envs, self.action_dim)
-            log_probs = log_probs.reshape(self.num_envs, self.action_dim)
+            actions = actions.reshape(self.num_envs, self.action_converter.action_output)
+            log_probs = log_probs.reshape(self.num_envs, self.action_converter.action_output)
             
             self.rollout.add(self.last_obs, actions, rewards, values, dones, log_probs)
             self.last_obs = obs
+            rollout_step += 1
 
         self.rollout.compute_returns_and_advantages(values, dones=dones)
 
@@ -156,27 +168,33 @@ class PPO(BaseAlgorithm):
                 advantages =    batch.advantages
                 returns =       batch.returns
 
+                # Get values and action probabilities using the updated policy on gathered observations
                 state_values, action_log_probs, entropy = self.policy.evaluate(observations, actions)
-
+                
+                # Normalize batch advantages
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
+                # Compute policy gradient ratio of current actions probs over previous
                 ratio = torch.exp(action_log_probs - old_log_probs)
 
+                # Compute surrogate loss
+                surr_loss_1 = advantages * ratio
+                surr_loss_2 = advantages * torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
+                policy_loss = -torch.min(surr_loss_1, surr_loss_2).mean()
 
-                policy_loss_1 = advantages * ratio
-                policy_loss_2 = advantages * torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
-                policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
-
+                # Clip state values for stability
                 state_values_clipped = old_values + (state_values - old_values).clamp(-self.clip_range, self.clip_range)
-
                 value_loss = F.mse_loss(returns, state_values).mean()
                 value_loss_clipped = F.mse_loss(returns, state_values_clipped).mean()
                 value_loss = torch.max(value_loss, value_loss_clipped).mean()
 
+                # Compute entropy loss
                 entropy_loss = -torch.mean(entropy)
 
+                # Total loss
                 loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
 
+                # Perform optimization
                 self.optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
@@ -194,7 +212,8 @@ class PPO(BaseAlgorithm):
 
         self._n_updates += self.n_epochs
     
-    def learn(self, total_timesteps, log_interval):
+    def learn(self, total_timesteps, log_interval, reward_target = None):
+        logger.configure("PPO", self.env_id)
         start_time = time.time()
         iteration = 0
 
@@ -214,38 +233,41 @@ class PPO(BaseAlgorithm):
 
             self.train()
 
-        logger.record("time/total timesteps", self.num_timesteps)
-        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
-            logger.record("rollout/ep_rew_mean",
-                            np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-            logger.record("rollout/num_episodes", self.num_episodes)
-        fps = int(self.num_timesteps / (time.time() - start_time))
-        logger.record("time/total_time", (time.time() - start_time))
-        logger.dump(step=self.num_timesteps)   
+            if reward_target is not None and np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]) > reward_target:
+                logger.record("time/total timesteps", self.num_timesteps)
+                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    logger.record("rollout/ep_rew_mean",
+                                    np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    logger.record("rollout/num_episodes", self.num_episodes)
+                fps = int(self.num_timesteps / (time.time() - start_time))
+                logger.record("time/total_time", (time.time() - start_time))
+                logger.dump(step=self.num_timesteps)   
+
+                break
 
         return self
 
 
 class PPO_RND(PPO):
     def __init__(self, *, 
-                env, 
+                env_id, 
                 lr = 3e-4, 
                 nstep = 128, 
                 batch_size = 64, 
                 n_epochs = 10, 
-                gamma = 0.999, 
+                gamma = 0.99, 
                 int_gamma = 0.99,
                 gae_lam = 0.95, 
                 int_gae_lam = 0.95,
                 clip_range = 0.2, 
                 ent_coef = .01, 
-                vf_coef = 0.5,
+                vf_coef = 1.0,
                 int_vf_coef = 1.0,
-                max_grad_norm = 0.5,
-                rnd_start = 1e+3,
+                max_grad_norm = 0.2,
+                rnd_start = 1e+4,
                 hidden_size = 128,
-                rnd_hidden_size = 32):              
-        super(PPO, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm) 
+                int_hidden_size = 32):              
+        super(PPO, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm) 
         
         
         self.int_gamma = int_gamma
@@ -253,23 +275,17 @@ class PPO_RND(PPO):
         self.int_gae_lam = int_gae_lam
         self.rnd_start = rnd_start
 
-        self.policy = Policy(env, hidden_size = hidden_size, intrinsic_model = True)
-        self.rnd = RndNetwork(env.observation_space.shape[0], hidden_size = hidden_size)
-        self.rollout = IntrinsicBuffer(nstep, self.num_envs, env.observation_space, env.action_space, gae_lam = gae_lam, int_gae_lam = int_gae_lam)
+        self.policy = Policy(self.env, hidden_size = hidden_size, intrinsic_model = True)
+        self.rnd = RndNetwork(self.state_dim, hidden_size = int_hidden_size)
+        self.rollout = IntrinsicBuffer(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam, int_gae_lam = int_gae_lam)
+
         self.optimizer = optim.RMSprop(self.policy.parameters(), lr = lr)  
         self.rnd_optimizer = optim.RMSprop(self.rnd.parameters(), lr = lr)  
 
         self.last_obs = self.env.reset()
 
-        self.requires_normalize = True
-
-
     def collect_samples(self):
-
         assert self.last_obs is not None
-        
-        rms_array = []
-
         rollout_step = 0
         self.rollout.reset()
 
@@ -290,8 +306,8 @@ class PPO_RND(PPO):
             else:
                 int_rewards = self.rnd.int_reward(self.last_obs).detach().numpy()
 
-            actions = actions.reshape(self.num_envs, self.action_dim)
-            log_probs = log_probs.reshape(self.num_envs, self.action_dim)
+            actions = actions.reshape(self.num_envs, self.action_converter.action_output)
+            log_probs = log_probs.reshape(self.num_envs, self.action_converter.action_output)
 
             self.rollout.add(self.last_obs, actions, rewards, int_rewards, ext_values, int_values, dones, log_probs)
 
@@ -305,7 +321,6 @@ class PPO_RND(PPO):
     def train(self, rollout):
         """
         Update policy using the currently gathered rollout buffer.
-
         """
         total_losses, policy_losses, value_losses, entropy_losses, intrinsic_losses = [], [], [], [], []
 
@@ -364,7 +379,7 @@ class PPO_RND(PPO):
         logger.record("train/entropy_loss", np.mean(entropy_losses))
         logger.record("train/policy_gradient_loss", np.mean(policy_losses))
         logger.record("train/value_loss", np.mean(value_losses))
-        logger.record("train/intrinsic_loss", np.mean(value_losses))
+        logger.record("train/intrinsic_loss", np.mean(intrinsic_losses))
         logger.record("train/total_loss", np.mean(total_losses))
 
         self._n_updates += self.n_epochs
@@ -383,7 +398,8 @@ class PPO_RND(PPO):
                 self.rnd_optimizer.step()
 
     
-    def learn(self, total_timesteps, log_interval, n_eval_episodes = 5):
+    def learn(self, total_timesteps, log_interval, n_eval_episodes = 5, reward_target = None):
+        logger.configure("RND", self.env_id)
         start_time = time.time()
         iteration = 0
 
@@ -398,8 +414,6 @@ class PPO_RND(PPO):
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
                     logger.record("rollout/ep_rew_mean",
                                   np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-                    logger.record("rollout/ep_len_mean",
-                                  np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
                     logger.record("rollout/num_episodes", self.num_episodes)
                 fps = int(self.num_timesteps / (time.time() - start_time))
                 logger.record("time/total_time", (time.time() - start_time))
@@ -410,16 +424,16 @@ class PPO_RND(PPO):
             if np.random.randn() < 0.25:
                 self.train_rnd(self.rollout)
 
-        logger.record("Complete", '.')
-        logger.record("time/total timesteps", self.num_timesteps)
-        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
-            logger.record("rollout/ep_rew_mean",
-                            np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-            logger.record("rollout/ep_len_mean",
-                            np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
-        fps = int(self.num_timesteps / (time.time() - start_time))
-        logger.record("time/total_time", (time.time() - start_time))
-        logger.dump(step=self.num_timesteps)   
+            if reward_target is not None and np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]) > reward_target:
+                logger.record("time/total timesteps", self.num_timesteps)
+                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    logger.record("rollout/ep_rew_mean",
+                                    np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    logger.record("rollout/num_episodes", self.num_episodes)
+                fps = int(self.num_timesteps / (time.time() - start_time))
+                logger.record("time/total_time", (time.time() - start_time))
+                logger.dump(step=self.num_timesteps)   
+                break
 
         return self
 
@@ -443,7 +457,7 @@ class PPO_RND(PPO):
 
 class PPO_ICM(BaseAlgorithm):
     def __init__(self, *, 
-                env, 
+                env_id, 
                 lr = 3e-4, 
                 icm_lr = 3e-4,
                 nstep = 128, 
@@ -457,22 +471,17 @@ class PPO_ICM(BaseAlgorithm):
                 int_vf_coef = 1.0,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
-                icm_hidden_size = 32):   
-        super(PPO_ICM, self).__init__(env, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
+                int_hidden_size = 32):   
+        super(PPO_ICM, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
      
         self.int_vc_coef = int_vf_coef
 
-        self.policy = Policy(env, hidden_size)
-        self.rollout = RolloutStorage(nstep, self.num_envs, env.observation_space, self.env.action_space, gae_lam = gae_lam)
-
-        self.feature_extractor = Encoder(self.state_dim, icm_hidden_size)
-        self.forward_model = ForwardModel(self.num_actions, icm_hidden_size, self.action_type)
-        self.inverse_model = InverseModel(self.action_dim, icm_hidden_size)
-
-        self.icm_params = list(self.feature_extractor.parameters()) + list(self.forward_model.parameters()) + list(self.inverse_model.parameters())
-        self.icm_optimizer = optim.RMSprop(self.icm_params, lr = icm_lr)
+        self.policy = Policy(self.env, hidden_size)
+        self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam)
+        self.intrinsic_module = IntrinsicCuriosityModule(self.state_dim, self.action_converter, hidden_size = int_hidden_size)
         
         self.optimizer = optim.RMSprop(self.policy.parameters(), lr = lr)  
+        self.icm_optimizer = optim.RMSprop(self.intrinsic_module.parameters(), lr = icm_lr)
 
         self.last_obs = self.env.reset()
 
@@ -482,8 +491,6 @@ class PPO_ICM(BaseAlgorithm):
         
         rollout_step = 0
         self.rollout.reset()
-
-        int_rewards = np.zeros((127,1))
 
         while rollout_step < self.nstep:
             with torch.no_grad():
@@ -498,13 +505,11 @@ class PPO_ICM(BaseAlgorithm):
             self.num_timesteps += self.num_envs
             self.update_info_buffer(infos)
 
-            current_features = self.feature_extractor(torch.Tensor(self.last_obs))
-            next_feature = self.feature_extractor(torch.Tensor(obs))
-            next_feature_hat = self.forward_model(actions, current_features)
-            int_reward = (next_feature_hat - next_feature).pow(2).mean(dim=1)
+            with torch.no_grad():
+                int_reward = self.intrinsic_module.int_reward(torch.Tensor(self.last_obs), torch.Tensor(obs), actions)
 
-            actions = actions.reshape(self.num_envs, self.action_dim)
-            log_probs = log_probs.reshape(self.num_envs, self.action_dim)
+            actions = actions.reshape(self.num_envs, self.action_converter.action_output)
+            log_probs = log_probs.reshape(self.num_envs, self.action_converter.action_output)
 
             self.rollout.add(self.last_obs, 
                             actions, 
@@ -515,13 +520,14 @@ class PPO_ICM(BaseAlgorithm):
                             int_reward.detach())
 
             self.last_obs = obs
-
         self.rollout.compute_returns_and_advantages(values, dones=dones)
 
         return True
 
     def train(self):
         total_losses, policy_losses, value_losses, entropy_losses, icm_losses = [], [], [], [], []
+
+        inv_criterion = self.action_converter.get_loss()
 
         for epoch in range(self.n_epochs):
             for batch in self.rollout.get(self.batch_size):
@@ -550,13 +556,10 @@ class PPO_ICM(BaseAlgorithm):
 
                 # Icm loss
 
-                current_features = self.feature_extractor(observations[:-1])
-                next_features = self.feature_extractor(observations[1:])
-                next_features_hat = self.forward_model(actions.flatten()[:-1], current_features)
-                action_hat = self.inverse_model(torch.cat([current_features, next_features], dim = -1))
+                actions_hat, next_features, next_features_hat = self.intrinsic_module(observations[:-1], observations[1:], actions[:-1])
 
                 forward_loss = F.mse_loss(next_features, next_features_hat)
-                inverse_loss = F.mse_loss(actions[:-1], action_hat)
+                inverse_loss = inv_criterion(actions_hat, self.action_converter.action(actions[:-1]).squeeze())
                 icm_loss = inverse_loss + forward_loss
 
                 entropy_loss = -torch.mean(entropy)
@@ -584,7 +587,8 @@ class PPO_ICM(BaseAlgorithm):
 
         self._n_updates += self.n_epochs
     
-    def learn(self, total_timesteps, log_interval):
+    def learn(self, total_timesteps, log_interval = 5, reward_target = None):
+        logger.configure("ICM", self.env_id)
         start_time = time.time()
         iteration = 0
 
@@ -599,8 +603,6 @@ class PPO_ICM(BaseAlgorithm):
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
                     logger.record("rollout/ep_rew_mean",
                                   np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-                    logger.record("rollout/ep_len_mean",
-                                  np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
                     logger.record("rollout/num_episodes", self.num_episodes)
                 fps = int(self.num_timesteps / (time.time() - start_time))
                 logger.record("time/total_time", (time.time() - start_time))
@@ -608,17 +610,16 @@ class PPO_ICM(BaseAlgorithm):
 
             self.train()
 
-        logger.record("Complete", '')
-        logger.record("time/total timesteps", self.num_timesteps)
-        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
-            logger.record("rollout/ep_rew_mean",
-                            np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-            logger.record("rollout/ep_len_mean",
-                            np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
-            logger.record("rollout/num_episodes", self.num_episodes)
-        fps = int(self.num_timesteps / (time.time() - start_time))
-        logger.record("time/total_time", (time.time() - start_time))
-        logger.dump(step=self.num_timesteps)   
+            if reward_target is not None and np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]) > reward_target:
+                logger.record("time/total timesteps", self.num_timesteps)
+                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    logger.record("rollout/ep_rew_mean",
+                                    np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    logger.record("rollout/num_episodes", self.num_episodes)
+                fps = int(self.num_timesteps / (time.time() - start_time))
+                logger.record("time/total_time", (time.time() - start_time))
+                logger.dump(step=self.num_timesteps)   
+                break
 
         return self
 
