@@ -33,6 +33,7 @@ class Policy(nn.Module):
         if self.intrinsic:
             return self.act_intrinsic(obs)
         obs = torch.FloatTensor(obs)
+
         logits, state_values = self.net(obs)
         state_values = state_values.squeeze()
 
@@ -52,8 +53,10 @@ class Policy(nn.Module):
     def evaluate(self, obs, actions):
         if self.intrinsic:
             return self.evaluate_intrinsic(obs, actions)
+
         obs = torch.FloatTensor(obs)
         logits, state_values = self.net(obs)
+
         state_values = state_values.squeeze()
 
         if self.action_type == "Discrete":
@@ -125,31 +128,31 @@ class BaseNetwork(nn.Module):
                 nn.init.orthogonal_(module.weight, np.sqrt(2))
                 nn.init.constant_(module.bias, 0)
 
+class Swish(nn.Module):
+    def forward(self, x):
+        return x * F.sigmoid(x)
+
 
 class MlpNetwork(BaseNetwork):
     def __init__(self, input_size, output_size, hidden_size = 128):
         super(MlpNetwork, self).__init__()
 
-        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
-                                   nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
+                                   nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+                                   nn.Linear(hidden_size, output_size)
                                     )
 
         
-        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
-                                    nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
+                                    nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+                                    nn.Linear(hidden_size, 1)
                                     )                       
-
-        self.a1 = nn.Linear(hidden_size, output_size)
-        self.c1 = nn.Linear(hidden_size, 1)
 
         self.init_weights()
 
     def forward(self, x):
         actor = self.actor(x)
-        actor = self.a1(actor)
-
         critic = self.critic(x)
-        critic = self.c1(critic)
 
         return actor, critic
 
@@ -161,35 +164,28 @@ class MlpIntrinsic(BaseNetwork):
     def __init__(self, input_size, output_size, hidden_size = 128):
         super(MlpIntrinsic, self).__init__()
 
-        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
-                                   nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
+                                   nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+                                   nn.Linear(hidden_size, output_size)
                                     )
 
         
-        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
-                                    nn.Linear(hidden_size, hidden_size), nn.Tanh(),
-                                    )
+        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
+                                    nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+                                    nn.Linear(hidden_size, 1)
+                                    )                       
 
-        self.int_critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
-                                        nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+        self.int_critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
+                                        nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+                                        nn.Linear(hidden_size, 1)
                                         )
-                            
-
-        self.a1 = nn.Linear(hidden_size, output_size)
-        self.c1 = nn.Linear(hidden_size, 1)
-        self.intc1 = nn.Linear(hidden_size, 1)   
 
         self.init_weights()
 
     def forward(self, x):
         actor = self.actor(x)
-        actor = self.a1(actor)
-
         critic = self.critic(x)
-        critic = self.c1(critic)
-
         int_critic = self.int_critic(x)
-        int_critic = self.intc1(int_critic)
 
         return actor, critic, int_critic
 
@@ -202,22 +198,24 @@ class RndNetwork(BaseNetwork):
         super(RndNetwork, self).__init__()
         
         self.predictor = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                                 nn.LeakyReLU(negative_slope=2e-1),
+                                                 nn.ReLU(),
                                                  nn.Linear(hidden_size, hidden_size),
-                                                 nn.LeakyReLU(negative_slope=2e-1),
-                                                 nn.Linear(hidden_size, hidden_size)
+                                                 nn.ReLU(),
+                                                 nn.Linear(hidden_size, 1)
                                                  )
         
         self.target = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                    nn.LeakyReLU(negative_slope=2e-1),
+                                    nn.ReLU(),
                                     nn.Linear(hidden_size, hidden_size),
-                                    nn.LeakyReLU(negative_slope=2e-1),
+                                    nn.ReLU(),
                                     nn.Linear(hidden_size, 1)
                                     )
 
-        self.pred1 = nn.Linear(hidden_size, 1)
-        
-        self.init_weights()
+        for name, param in self.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 1)
+            elif 'weight' in name:
+                nn.init.constant_(param, 0.01)
                 
         for param in self.target.parameters():
             param.requires_grad = False
@@ -227,7 +225,6 @@ class RndNetwork(BaseNetwork):
             x = torch.Tensor(x)
 
         predict = self.predictor(x)
-        predict = self.pred1(F.leaky_relu(predict))
         target = self.target(x)
         return predict, target
 
@@ -238,7 +235,7 @@ class RndNetwork(BaseNetwork):
         obs = torch.FloatTensor(obs)
         
         pred, target = self(obs)
-        int_rew = F.mse_loss(pred, target)
+        int_rew = (pred - target).pow(2).mean()
         
         return int_rew
 

@@ -18,9 +18,10 @@ from stable_baselines3.common.vec_env import vec_normalize
 import pybulletgym
 
 if __name__ == "__main__":
-    model = PPO_RND(env_id = "BipedalWalker-v3", lr = 0.0003, vf_coef = 1, nstep = 128, int_vf_coef = 2, 
-                    batch_size = 128, hidden_size = 64, n_epochs = 4, int_hidden_size = 256, rnd_start = 1e+4)
 
-    model.learn(total_timesteps = 1e+7, log_interval = 1, reward_target = 200)
+    model = PPO_RND(env_id = "BipedalWalker-v3", lr = 0.0005, vf_coef = 1, nstep = 128, batch_size = 128, max_grad_norm = 1,
+                    hidden_size = 64, n_epochs = 4, int_hidden_size = 64)
+    model.learn(total_timesteps = 1e+6, log_interval = 1, reward_target = 200, log_to_file = False)
+
 
 

@@ -132,11 +132,10 @@ class Logger(object):
     DEFAULT = None
     CURRENT = None  
 
-    def __init__(self, folder = './logs', file_name = 'progress.csv'):
+    def __init__(self, outputs, folder = './logs'):
         self.name_to_value = defaultdict(float) 
-        self.dir = folder
-        self.file_name = os.path.join(folder, file_name)
-        self.outputs = [HumanOutputFormat(sys.stdout), CSVOutputFormat(self.file_name)]
+        self.dir = folder  
+        self.outputs = outputs
 
     def record(self, key, value):
 
@@ -189,7 +188,7 @@ class Logger(object):
                 _format.write_sequence(map(str, args))
 
 
-Logger.CURRENT = Logger()
+Logger.CURRENT = Logger(HumanOutputFormat(sys.stdout))
 
 def dump(step):
     """
@@ -208,7 +207,7 @@ def record(key, value):
     """
     Logger.CURRENT.record(key, value)
 
-def configure(algorithm, environment, folder = None):
+def configure(algorithm, environment, log_to_file = False, folder = None):
 
     if folder is None:
         folder = "./logs"
@@ -216,7 +215,13 @@ def configure(algorithm, environment, folder = None):
     folder = os.path.join(folder, algorithm, environment)
     os.makedirs(folder, exist_ok=True)
 
-    file_name = "run" + datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S-%f") + ".csv"
+    
 
-    Logger.CURRENT = Logger(folder=folder, file_name = file_name)
+    output = [HumanOutputFormat(sys.stdout)]
+    if log_to_file:       
+        file_name = "run" + datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S-%f") + ".csv"
+        file_name = os.path.join(folder, file_name)
+        output.append(CSVOutputFormat(file_name))
+
+    Logger.CURRENT = Logger(output, folder=folder)
     print(f"Logging to {folder}")

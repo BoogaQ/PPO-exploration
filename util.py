@@ -55,7 +55,7 @@ class ActionConverter():
 
     def action(self, action):
         if self.action_type == "Discrete":
-            return action.long()
+            return action.squeeze().long()
         elif self.action_type == "Box":
             return action.float()
             

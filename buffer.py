@@ -150,7 +150,7 @@ class RolloutStorage(BaseBuffer):
         self.generator_ready = False
         super(RolloutStorage, self).reset()   
 
-    def add(self, obs, action, reward, value, mask, log_prob, int_reward = 0):
+    def add(self, obs, action, reward, value, mask, log_prob):
         """
         :param obs: (np.Tensor) Observation
         :param action: (np.Tensor) Action
@@ -163,7 +163,6 @@ class RolloutStorage(BaseBuffer):
         self.observations[self.pos] =       np.array(obs).copy()
         self.actions[self.pos] =            np.array(action).copy()
         self.rewards[self.pos] =            np.array(reward).copy()
-        self.int_rewards[self.pos] =        np.array(int_reward).copy()
         self.masks[self.pos] =              np.array(mask).copy()
         self.values[self.pos] =             value.clone().cpu().numpy()
         self.action_log_probs[self.pos] =   log_prob.clone().cpu().numpy()
@@ -202,7 +201,7 @@ class RolloutStorage(BaseBuffer):
             else:
                 next_non_terminal = 1.0 - self.masks[step + 1]
                 next_value = self.values[step + 1]
-            delta = self.rewards[step] + self.int_rewards[step] + self.gamma * next_value * next_non_terminal - self.values[step]
+            delta = self.rewards[step] + self.gamma * next_value * next_non_terminal - self.values[step]
             last_gae_lam = delta + self.gamma * self.gae_lam * next_non_terminal * last_gae_lam
             self.advantages[step] = last_gae_lam
         self.returns = self.advantages + self.values

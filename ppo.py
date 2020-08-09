@@ -47,7 +47,10 @@ class BaseAlgorithm(ABC):
                 max_grad_norm):   
 
         self.env_id = env_id
-        self.env = make_env(env_id, n_envs = multiprocessing.cpu_count())
+        try:
+            self.env = make_env(env_id, n_envs = multiprocessing.cpu_count())
+        except:
+            self.env = make_env(env_id, n_envs = 1, vec_env_cls = DummyVecEnv) 
         self.num_envs = self.env.num_envs if isinstance(self.env, VecEnv) else 1
         self.state_dim = self.env.observation_space.shape[0]
         self.action_converter = ActionConverter(self.env.action_space)
@@ -63,7 +66,7 @@ class BaseAlgorithm(ABC):
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
 
-        self.ep_info_buffer = deque(maxlen=10)
+        self.ep_info_buffer = deque(maxlen=50)
         self._n_updates = 0
         self.num_timesteps = 0 
         self.num_episodes = 0
@@ -212,8 +215,8 @@ class PPO(BaseAlgorithm):
 
         self._n_updates += self.n_epochs
     
-    def learn(self, total_timesteps, log_interval, reward_target = None):
-        logger.configure("PPO", self.env_id)
+    def learn(self, total_timesteps, log_interval, reward_target = None, log_to_file = False):
+        logger.configure("PPO", self.env_id, log_to_file)
         start_time = time.time()
         iteration = 0
 
@@ -255,15 +258,15 @@ class PPO_RND(PPO):
                 nstep = 128, 
                 batch_size = 64, 
                 n_epochs = 10, 
-                gamma = 0.99, 
+                gamma = 0.999, 
                 int_gamma = 0.99,
                 gae_lam = 0.95, 
                 int_gae_lam = 0.95,
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1.0,
-                int_vf_coef = 1.0,
-                max_grad_norm = 0.2,
+                int_vf_coef = 0.5,
+                max_grad_norm = 1,
                 rnd_start = 1e+4,
                 hidden_size = 128,
                 int_hidden_size = 32):              
@@ -398,8 +401,8 @@ class PPO_RND(PPO):
                 self.rnd_optimizer.step()
 
     
-    def learn(self, total_timesteps, log_interval, n_eval_episodes = 5, reward_target = None):
-        logger.configure("RND", self.env_id)
+    def learn(self, total_timesteps, log_interval, n_eval_episodes = 5, reward_target = None, log_to_file = False):
+        logger.configure("RND", self.env_id, log_to_file)
         start_time = time.time()
         iteration = 0
 
@@ -421,7 +424,7 @@ class PPO_RND(PPO):
  
 
             self.train(self.rollout)
-            if np.random.randn() < 0.25:
+            if np.random.randn() < 0.2:
                 self.train_rnd(self.rollout)
 
             if reward_target is not None and np.mean([ep_info["r"] for ep_info in self.ep_info_buffer]) > reward_target:
@@ -468,13 +471,13 @@ class PPO_ICM(BaseAlgorithm):
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1,
-                int_vf_coef = 1.0,
+                int_vf_coef = 0.01,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
                 int_hidden_size = 32):   
         super(PPO_ICM, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
      
-        self.int_vc_coef = int_vf_coef
+        self.int_vf_coef = int_vf_coef
 
         self.policy = Policy(self.env, hidden_size)
         self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam)
@@ -505,9 +508,10 @@ class PPO_ICM(BaseAlgorithm):
             self.num_timesteps += self.num_envs
             self.update_info_buffer(infos)
 
-            with torch.no_grad():
-                int_reward = self.intrinsic_module.int_reward(torch.Tensor(self.last_obs), torch.Tensor(obs), actions)
+            
+            int_rewards = self.intrinsic_module.int_reward(torch.Tensor(self.last_obs), torch.Tensor(obs), actions)
 
+            rewards = (1-self.int_vf_coef) * rewards + self.int_vf_coef * int_rewards.detach().numpy()
             actions = actions.reshape(self.num_envs, self.action_converter.action_output)
             log_probs = log_probs.reshape(self.num_envs, self.action_converter.action_output)
 
@@ -516,8 +520,7 @@ class PPO_ICM(BaseAlgorithm):
                             rewards, 
                             values, 
                             dones, 
-                            log_probs, 
-                            int_reward.detach())
+                            log_probs)
 
             self.last_obs = obs
         self.rollout.compute_returns_and_advantages(values, dones=dones)
@@ -559,12 +562,12 @@ class PPO_ICM(BaseAlgorithm):
                 actions_hat, next_features, next_features_hat = self.intrinsic_module(observations[:-1], observations[1:], actions[:-1])
 
                 forward_loss = F.mse_loss(next_features, next_features_hat)
-                inverse_loss = inv_criterion(actions_hat, self.action_converter.action(actions[:-1]).squeeze())
+                inverse_loss = inv_criterion(actions_hat, self.action_converter.action(actions[:-1]))
                 icm_loss = inverse_loss + forward_loss
 
                 entropy_loss = -torch.mean(entropy)
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss +  self.int_vc_coef * icm_loss
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + icm_loss
 
                 self.optimizer.zero_grad()
                 self.icm_optimizer.zero_grad()
@@ -587,8 +590,8 @@ class PPO_ICM(BaseAlgorithm):
 
         self._n_updates += self.n_epochs
     
-    def learn(self, total_timesteps, log_interval = 5, reward_target = None):
-        logger.configure("ICM", self.env_id)
+    def learn(self, total_timesteps, log_interval = 5, reward_target = None, log_to_file = False):
+        logger.configure("ICM", self.env_id, log_to_file)
         start_time = time.time()
         iteration = 0
 
