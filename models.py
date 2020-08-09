@@ -198,24 +198,30 @@ class RndNetwork(BaseNetwork):
         super(RndNetwork, self).__init__()
         
         self.predictor = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                                 nn.ReLU(),
+                                                 nn.ELU(),
                                                  nn.Linear(hidden_size, hidden_size),
-                                                 nn.ReLU(),
+                                                 nn.ELU(),
                                                  nn.Linear(hidden_size, 1)
                                                  )
         
         self.target = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                    nn.ReLU(),
+                                    nn.ELU(),
                                     nn.Linear(hidden_size, hidden_size),
-                                    nn.ReLU(),
+                                    nn.ELU(),
                                     nn.Linear(hidden_size, 1)
                                     )
 
-        for name, param in self.named_parameters():
+        for name, param in self.target.named_parameters():
             if 'bias' in name:
                 nn.init.constant_(param, 1)
             elif 'weight' in name:
                 nn.init.constant_(param, 0.01)
+
+        for name, param in self.predictor.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0.01)
+            elif 'weight' in name:
+                nn.init.constant_(param, 1)
                 
         for param in self.target.parameters():
             param.requires_grad = False
@@ -223,7 +229,6 @@ class RndNetwork(BaseNetwork):
     def forward(self, x):      
         if not isinstance(x, torch.Tensor):
             x = torch.Tensor(x)
-
         predict = self.predictor(x)
         target = self.target(x)
         return predict, target
@@ -235,7 +240,7 @@ class RndNetwork(BaseNetwork):
         obs = torch.FloatTensor(obs)
         
         pred, target = self(obs)
-        int_rew = (pred - target).pow(2).mean()
+        int_rew = (pred - target).pow(2).squeeze()
         
         return int_rew
 
@@ -289,7 +294,7 @@ class IntrinsicCuriosityModule(BaseNetwork):
 
         next_state_hat = self.forward_model(torch.cat((state_ft, action), 1))
 
-        return (next_state_hat - next_state_ft).pow(2).mean()
+        return (next_state_hat - next_state_ft).pow(2).mean(dim = -1)
 
 
 

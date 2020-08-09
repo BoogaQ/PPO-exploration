@@ -1,6 +1,9 @@
 import numpy as np
 import torch
 
+import logger
+from util import RunningMeanStd
+
 from collections import namedtuple
 
 
@@ -135,7 +138,6 @@ class RolloutStorage(BaseBuffer):
         self.reset()
 
         self.RolloutSample = namedtuple('RolloutSample', ['observations', 'actions', 'old_values', 'old_log_probs', 'advantages', 'returns'])
-        
 
     def reset(self):
         self.observations =     np.zeros((self.buffer_size, self.n_envs, *self.obs_shape), dtype = 'float32')
@@ -189,11 +191,6 @@ class RolloutStorage(BaseBuffer):
         last_value = last_value.clone().cpu().numpy().flatten()
         last_gae_lam = 0
 
-        #self.int_rewards = (self.int_rewards - np.mean(self.int_rewards)) / (np.std(self.int_rewards) + 1e-8)
-
-        # Normalizing the rewards:
-        #self.rewards = (self.rewards - np.mean(self.rewards)) / (np.std(self.rewards) + 1e-5)
-
         for step in reversed(range(self.buffer_size)):
             if step == self.buffer_size - 1:
                 next_non_terminal = 1.0 - dones
@@ -237,13 +234,11 @@ class RolloutStorage(BaseBuffer):
 
 
 
-class IntrinsicBuffer(RolloutStorage):
-    def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, int_gae_lam = 0.95, gamma = 0.99, int_gamma = 0.99):
-        self.int_gae_lam = .95
+class IntrinsicStorage(RolloutStorage):
+    def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99, int_gamma = 0.99):
+        super(IntrinsicStorage, self).__init__(buffer_size, n_envs, obs_space, action_space, gae_lam, gamma)
         self.int_gamma = .99
         self.int_rewards, self.int_values, self.int_advantages, self.int_returns = None, None, None, None
-
-        super(IntrinsicBuffer, self).__init__(buffer_size, n_envs, obs_space, action_space, gae_lam, gamma)
 
         self.RolloutSample = namedtuple('RolloutSample', ['observations', 
                                                             'actions', 
@@ -255,13 +250,14 @@ class IntrinsicBuffer(RolloutStorage):
                                                             'returns', 
                                                             'int_returns'])
 
+        self.int_norm = RunningMeanStd()    
 
     def reset(self):
         self.int_rewards =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.int_values =           np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.int_returns =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
         self.int_advantages =       np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
-        super(IntrinsicBuffer, self).reset()  
+        super(IntrinsicStorage, self).reset()  
 
     def add(self, obs, action, reward, int_reward, value, int_value, mask, log_prob):
         """
@@ -276,7 +272,7 @@ class IntrinsicBuffer(RolloutStorage):
         self.int_rewards[self.pos] =            np.array(int_reward).copy()
         self.int_values[self.pos] =             int_value.clone().cpu().numpy().flatten()
 
-        super(IntrinsicBuffer, self).add(obs, action, reward, value, mask, log_prob)
+        super(IntrinsicStorage, self).add(obs, action, reward, value, mask, log_prob)
 
 
     def compute_returns_and_advantages(self, last_value, last_int_value, dones):
@@ -292,9 +288,11 @@ class IntrinsicBuffer(RolloutStorage):
         :param last_value: (th.Tensor)
         :param dones: (np.ndarray)
         """
-
-        self.int_rewards = self.int_rewards / (np.std(self.int_values) + 1e+08)
-
+     
+        self.int_norm.update(self.int_rewards)
+        self.int_rewards = self.int_rewards / np.sqrt(self.int_norm.var + 1e-08)
+        logger.record("rollout/mean_int_reward", np.mean(self.int_rewards))
+        
         last_value = last_value.clone().cpu().numpy().flatten()
         last_int_value = last_int_value.clone().cpu().numpy().flatten()
 
@@ -316,10 +314,9 @@ class IntrinsicBuffer(RolloutStorage):
             self.advantages[step] = last_gae_lam
 
             int_delta = self.int_rewards[step] + self.int_gamma * next_int_values * next_non_terminal - self.int_values[step]
-            int_last_gae_lam = int_delta + self.int_gamma * self.int_gae_lam * next_non_terminal * int_last_gae_lam
+            int_last_gae_lam = int_delta + self.int_gamma * self.gae_lam * next_non_terminal * int_last_gae_lam
             self.int_advantages[step] = int_last_gae_lam
-
-            
+      
         self.returns = self.advantages + self.values
         self.int_returns = self.int_advantages + self.int_values
 
