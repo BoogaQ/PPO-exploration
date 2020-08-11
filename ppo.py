@@ -31,7 +31,6 @@ class BaseAlgorithm(ABC):
     :param ent_coef: (float)        entropy loss coefficient
     :param vf_coef: (float)         value loss coefficient
     :param max_grad_norm: (float)   max grad norm for optimizer
-
     """
     def __init__(self, 
                 env_id, 
@@ -76,7 +75,6 @@ class BaseAlgorithm(ABC):
     def collect_samples(self):
         """
         Collect rollouts using the current policy and fill a `RolloutBuffer`.
-
         """
         raise NotImplementedError()
 
@@ -84,7 +82,6 @@ class BaseAlgorithm(ABC):
     def train(self):
         """
         Update policy using the currently gathered rollout buffer.
-
         """
         raise NotImplementedError()
 
@@ -92,7 +89,6 @@ class BaseAlgorithm(ABC):
     def learn(self, total_timesteps, log_interval):
         """
         Initiate the learning process and return a trained model.
-
         """
         raise NotImplementedError()
 
@@ -128,7 +124,7 @@ class PPO(BaseAlgorithm):
 
         self.policy = Policy(self.env, hidden_size)
         self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam, gamma = gamma)
-        self.optimizer = optim.RMSprop(self.policy.net.parameters(), lr = lr)  
+        self.optimizer = optim.Adam(self.policy.net.parameters(), lr = lr)  
 
         self.last_obs = self.env.reset()
 
@@ -274,8 +270,8 @@ class PPO_RND(BaseAlgorithm):
         self.policy = Policy(self.env, hidden_size, intrinsic_model = True)
         self.rnd = RndNetwork(self.state_dim, hidden_size = int_hidden_size)
         self.rollout = IntrinsicStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam, gamma = gamma)
-        self.optimizer = optim.RMSprop(self.policy.net.parameters(), lr = lr)  
-        self.rnd_optimizer = optim.RMSprop(self.rnd.parameters(), lr = int_lr)
+        self.optimizer = optim.Adam(self.policy.net.parameters(), lr = lr)  
+        self.rnd_optimizer = optim.Adam(self.rnd.parameters(), lr = int_lr)
 
         self.rnd_start = rnd_start
 
@@ -367,7 +363,7 @@ class PPO_RND(BaseAlgorithm):
                 # Perform optimization
                 self.optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(self.policy.net.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 total_losses.append(loss.item())
@@ -460,8 +456,8 @@ class PPO_ICM(BaseAlgorithm):
         self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam)
         self.intrinsic_module = IntrinsicCuriosityModule(self.state_dim, self.action_converter, hidden_size = int_hidden_size)
         
-        self.optimizer = optim.RMSprop(self.policy.parameters(), lr = lr)  
-        self.icm_optimizer = optim.RMSprop(self.intrinsic_module.parameters(), lr = int_lr)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr = lr)  
+        self.icm_optimizer = optim.Adam(self.intrinsic_module.parameters(), lr = int_lr)
 
         self.last_obs = self.env.reset()
         self.int_norm = RunningMeanStd()    
@@ -558,7 +554,7 @@ class PPO_ICM(BaseAlgorithm):
                 self.optimizer.zero_grad()
                 self.icm_optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(self.policy.net.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 self.icm_optimizer.step()
 
@@ -611,4 +607,3 @@ class PPO_ICM(BaseAlgorithm):
                 break
 
         return self
-

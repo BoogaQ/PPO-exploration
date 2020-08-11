@@ -237,7 +237,7 @@ class RolloutStorage(BaseBuffer):
 class IntrinsicStorage(RolloutStorage):
     def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99, int_gamma = 0.99):
         super(IntrinsicStorage, self).__init__(buffer_size, n_envs, obs_space, action_space, gae_lam, gamma)
-        self.int_gamma = .99
+        self.int_gamma = int_gamma
         self.int_rewards, self.int_values, self.int_advantages, self.int_returns = None, None, None, None
 
         self.RolloutSample = namedtuple('RolloutSample', ['observations', 

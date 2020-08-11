@@ -28,25 +28,25 @@ class Policy(nn.Module):
         else:
             self.net = MlpNetwork(self.state_dim, self.action_dim, hidden_size = hidden_size)
 
-
     def act(self, obs):
         if self.intrinsic:
             return self.act_intrinsic(obs)
-        obs = torch.FloatTensor(obs)
-
-        logits, state_values = self.net(obs)
-        state_values = state_values.squeeze()
+        obs = torch.FloatTensor(obs)       
 
         if self.action_type == "Discrete":
+            logits, state_values = self.net(obs)
+            state_values = state_values.squeeze()
             dist = distributions.Categorical(F.softmax(logits, dim = -1))
             actions = dist.sample().squeeze()
             action_log_probs = dist.log_prob(actions).squeeze()
 
         elif self.action_type == "Box":
-            log_std = self.action_log_std
-            dist = distributions.Normal(logits, torch.exp(log_std))
+            logits, sd, state_values = self.net.forward_continuous(obs)
+            state_values = state_values.squeeze()
+            dist = distributions.Normal(logits, torch.exp(sd))
             actions = dist.sample()
             action_log_probs = dist.log_prob(actions)
+            dist_entropy = dist.entropy()   
         
         return actions, state_values, action_log_probs
 
@@ -54,20 +54,20 @@ class Policy(nn.Module):
         if self.intrinsic:
             return self.evaluate_intrinsic(obs, actions)
 
-        obs = torch.FloatTensor(obs)
-        logits, state_values = self.net(obs)
-
-        state_values = state_values.squeeze()
+        obs = torch.FloatTensor(obs)     
 
         if self.action_type == "Discrete":
+            logits, state_values = self.net(obs)
+            state_values = state_values.squeeze()
             actions = actions.flatten()
             dist = distributions.Categorical(F.softmax(logits, dim = -1))
             action_log_probs = dist.log_prob(actions).unsqueeze(1)
             dist_entropy = dist.entropy()
 
         elif self.action_type == "Box":
-            log_std = self.action_log_std
-            dist = distributions.Normal(logits, torch.exp(log_std))
+            logits, sd, state_values = self.net.forward_continuous(obs)
+            state_values = state_values.squeeze()
+            dist = distributions.Normal(logits, torch.exp(sd))
             action_log_probs = dist.log_prob(actions)
             dist_entropy = dist.entropy()    
 
@@ -78,43 +78,50 @@ class Policy(nn.Module):
 
         obs = torch.FloatTensor(obs)
         logits, state_values, int_state_values = self.net(obs)
-
         state_values = state_values.squeeze()
         int_state_values = int_state_values.squeeze()
 
         if self.action_type == "Discrete":
+            logits, state_values, int_state_values = self.net(obs)
+            state_values = state_values.squeeze()
+            int_state_values = int_state_values.squeeze()
             dist = distributions.Categorical(F.softmax(logits, dim = -1))
             actions = dist.sample().squeeze()
             action_log_probs = dist.log_prob(actions).squeeze()
 
         elif self.action_type == "Box":
-            log_std = self.action_log_std
-            dist = distributions.Normal(logits, torch.exp(log_std))
+            logits, sd, state_values = self.net.forward_continuous(obs)
+            state_values = state_values.squeeze()
+            dist = distributions.Normal(logits, torch.exp(sd))
             actions = dist.sample()
             action_log_probs = dist.log_prob(actions)
+            dist_entropy = dist.entropy()
         
         return actions, state_values, int_state_values, action_log_probs
 
     def evaluate_intrinsic(self, obs, actions):
         assert self.intrinsic # Only usable with random network distillation
 
-        obs = torch.FloatTensor(obs)
-        logits, state_values, int_state_values = self.net(obs)
-
-        state_values =  state_values.squeeze()
-        int_state_values = int_state_values.squeeze()
+        obs = torch.FloatTensor(obs)      
 
         if self.action_type == "Discrete":
+            logits, state_values, int_state_values = self.net(obs)
+            state_values =  state_values.squeeze()
+            int_state_values = int_state_values.squeeze()
             actions = actions.flatten()
             dist = distributions.Categorical(F.softmax(logits, dim = -1))
             action_log_probs = dist.log_prob(actions).unsqueeze(1)
             dist_entropy = dist.entropy()
 
         elif self.action_type == "Box":
-            log_std = self.action_log_std
-            dist = distributions.Normal(logits, torch.exp(log_std))
+            logits, state_values, int_state_values = self.net(obs)
+
+            state_values =  state_values.squeeze()
+            int_state_values = int_state_values.squeeze()
+            state_values = state_values.squeeze()
+            dist = distributions.Normal(logits, torch.exp(sd))
             action_log_probs = dist.log_prob(actions)
-            dist_entropy = dist.entropy()    
+            dist_entropy = dist.entropy()     
 
         return state_values, int_state_values, action_log_probs, dist_entropy
 
@@ -128,25 +135,23 @@ class BaseNetwork(nn.Module):
                 nn.init.orthogonal_(module.weight, np.sqrt(2))
                 nn.init.constant_(module.bias, 0)
 
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * F.sigmoid(x)
-
 
 class MlpNetwork(BaseNetwork):
     def __init__(self, input_size, output_size, hidden_size = 128):
         super(MlpNetwork, self).__init__()
 
-        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
-                                   nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
+                                   nn.Linear(hidden_size, hidden_size), nn.Tanh(),
                                    nn.Linear(hidden_size, output_size)
                                     )
 
         
-        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
-                                    nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
+                                    nn.Linear(hidden_size, hidden_size), nn.Tanh(),
                                     nn.Linear(hidden_size, 1)
                                     )                       
+                                    
+        self.action_log_std = nn.Parameter(torch.zeros(1, output_size))
 
         self.init_weights()
 
@@ -155,6 +160,13 @@ class MlpNetwork(BaseNetwork):
         critic = self.critic(x)
 
         return actor, critic
+
+    def forward_continuous(self, x):
+        mean = self.actor(x).tanh()
+        log_sd = self.action_log_std.expand_as(mean)
+        critic = self.critic(x)
+
+        return mean ,log_sd, critic
 
     def __call__(self, x):
         return self.forward(x)
@@ -205,8 +217,6 @@ class RndNetwork(BaseNetwork):
                                                  )
         
         self.target = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                    nn.ELU(),
-                                    nn.Linear(hidden_size, hidden_size),
                                     nn.ELU(),
                                     nn.Linear(hidden_size, 1)
                                     )
@@ -294,14 +304,5 @@ class IntrinsicCuriosityModule(BaseNetwork):
 
         next_state_hat = self.forward_model(torch.cat((state_ft, action), 1))
 
-        return (next_state_hat - next_state_ft).pow(2).mean(dim = -1)
-
-
-
-
-                
-
-
-    
-
-    
+        int_rew = (next_state_hat - next_state_ft).pow(2).mean(dim = -1)
+        return torch.clamp(int_rew, -1, 1)
