@@ -31,7 +31,8 @@ class FeedForwardNetwork(object):
 
         layer_sizes = [env.observation_space.shape[0], *hidden_sizes, self.num_actions]
         for index in range(len(layer_sizes)-1):
-            self.weights.append(np.zeros(shape=(layer_sizes[index], layer_sizes[index+1])))
+            self.weights.append(np.random.randn(layer_sizes[index], layer_sizes[index+1]))
+
 
     @property
     def num_actions(self):
@@ -47,7 +48,7 @@ class FeedForwardNetwork(object):
                 out = np.dot(out, self.weights[i])
                 out = np.arctan(out)
             except:
-                pass
+                continue
 
         out = np.dot(out, self.weights[-1])
         out = self.get_action(out.astype(float))
@@ -78,33 +79,36 @@ class FeedForwardNetwork(object):
 
     def continuous_action(self, logits):
         mean = logits
-        sd = np.ones(shape=mean.shape)
-        return np.random.normal(mean, sd)
-        #return mean.squeeze()
+        if self.env.observation_space.shape[0] == 1:
+            return np.tanh(logits)
+        else:
+            return np.tanh(logits)
 
     def get_action(self, logits):
         if self.action_space == "Discrete":
             return self.discrete_action(self.env.action_space.n, logits)
         else:
-            return self.continuous_action(logits)
+            return self.continuous_action(logits).astype(np.double)
 
 
 class EvolutionStrategy(object):
-    def __init__(self, env_id, hidden_sizes, population_size=50, sigma=0.1, learning_rate=0.03, decay=0.999, novelty_param = 0.5,
+    def __init__(self, env_id, hidden_sizes, nsr_plateu = 1.5, nsr_range = [0, 1], nsr_update = 0.05, population_size=50, sigma=0.1, learning_rate=0.03, decay=0.995, novelty_param = 0.5,
                  num_threads=1):
         self.env_id = env_id
         self.env = gym.make(env_id)
-        self.env.reset()
-        self.model = model = FeedForwardNetwork(self.env, hidden_sizes=[16, 16])
+        self.model = model = FeedForwardNetwork(self.env, hidden_sizes=[32, 32])
         self.weights = self.model.get_weights()
         self.POPULATION_SIZE = population_size
         self.SIGMA = sigma
         self.learning_rate = learning_rate
         self.decay = decay
         self.num_threads = mp.cpu_count() if num_threads == -1 else num_threads
-        self.rewards = deque(maxlen=10)
+        self.rewards = deque(maxlen=50)
         self.novelty_param = novelty_param
         self.K = 5
+        self.nsr_plateu = nsr_plateu
+        self.nsr_range = nsr_range
+        self.nsr_update = nsr_update
 
     def _get_weights_try(self, w, p):
         weights_try = []
@@ -123,7 +127,6 @@ class EvolutionStrategy(object):
         total_steps = 0
         for t in itertools.count():
             actions = self.model.predict(obs)
-
             obs, reward, done, info = env.step(actions)
             total_r += reward
             if done:
@@ -144,7 +147,6 @@ class EvolutionStrategy(object):
         if pool is not None:
             worker_args = ((self.evaluate, self._get_weights_try(self.weights, p), self.env) for p in population)
             rewards = pool.map(worker_process, worker_args)
-
         else:
             rewards = []
             for p in population:
@@ -189,7 +191,7 @@ class EvolutionStrategy(object):
         return novelty
 
 
-    def _update_weights(self, rewards, population, novelty = None):
+    def _update_weights(self, rewards, population, novelties = None):
         std = rewards.std()
         if std == 0:
             return
@@ -197,9 +199,10 @@ class EvolutionStrategy(object):
         for index, w in enumerate(self.weights):
             layer_population = np.array([p[index] for p in population])
             update_factor = self.learning_rate / (self.POPULATION_SIZE * self.SIGMA)
-            if novelty is not None:
-                novelty_score = (1 - self.novelty_param) * np.dot(layer_population.T, rewards).T + self.novelty_param * novelty
-                self.weights[index] = w + update_factor * novelty_score
+            if novelties is not None:
+                novelties = (novelties - np.mean(novelties)) / (np.std(novelties) + 1e-8)
+                novelties_score = (1 - self.novelty_param) * np.dot(layer_population.T, rewards).T + self.novelty_param * np.dot(layer_population.T, novelties).T
+                self.weights[index] = w + update_factor * novelties_score
             else:
                 self.weights[index] = w + update_factor * np.dot(layer_population.T, rewards).T         
         self.learning_rate *= self.decay
@@ -221,7 +224,8 @@ class EvolutionStrategy(object):
             step_count += 1
             if done:
                 break
-        return  obs.reshape(1, self.env.observation_space.shape[0]) 
+        a = obs.reshape(1, self.env.observation_space.shape[0]) 
+        return  np.array([step_count]).reshape(1,1)
 
     def get_kNN(self, archive, bc, n_neighbors):
         """
@@ -251,9 +255,6 @@ class EvolutionStrategy(object):
     def run(self, total_timesteps, reward_target = None, log_interval=1, log_to_file = False):
         logger.configure("ES", self.env_id, log_to_file)
 
-        MPS = 5 # meta population size
-        meta_population = [FeedForwardNetwork(self.env, hidden_sizes=[16, 16]) for i in range(MPS)]
-
         pool = mp.Pool(self.num_threads) if self.num_threads > 1 else None
         start_time = time.time()
 
@@ -264,48 +265,21 @@ class EvolutionStrategy(object):
         for iteration in range(int(total_timesteps)):
             population = self._get_population()
             if len(archive) > 0:
-                novelties = []
-                S = np.minimum(self.K, len(archive))
-                for model in meta_population:
-                    b_pi_theta = self.get_behavior_char(model.get_weights(), self.env)
-                    distance = self.get_kNN(archive, b_pi_theta, S)
-                    novelty = distance / S
-                    if novelty <= 1e-3:
-                        novelty = 5e-3
-                    novelties.append(novelty)
-
-                probs = self.calc_noveltiy_distribution(novelties)
-                probs /= np.array(probs).sum()   
-
-                model_index = np.random.choice(list(range(MPS)),p=probs) # select new brain based on novelty probabilities
-                model = meta_population[model_index]
-                novelty = novelties[model_index]
-                
-                self.weights = model.get_weights()
-
-                rewards = self._get_rewards(pool, population)
-
-                self._update_weights(rewards, population, novelty)
+                rewards, novelties = self._get_rew_novelties(pool, population, archive)
+                self._update_weights(rewards, population, novelties)
             else:
                 rewards = self._get_rewards(pool, population)
-                model_index = np.random.randint(0, MPS)
-                model = meta_population[model_index]
-                novelty = 1
-
-                self.weights = model.get_weights()
-
-                self._update_weights(rewards, population)
-            
+                self._update_weights(rewards, population)     
 
             mean_reward_batch = np.mean(rewards)
             reward_gradient_mean = np.mean(delta_reward_buffer)
 
             r_koeff = abs(mean_reward_batch - reward_gradient_mean)
 
-            if r_koeff < 1.5:
-                self.novelty_param = np.minimum(1, self.novelty_param + 0.05)
+            if r_koeff < self.nsr_plateu:
+                self.novelty_param = np.minimum(self.nsr_range[1], self.novelty_param + self.nsr_update)
             else:
-                self.novelty_param = np.maximum(0, self.novelty_param - 0.05)
+                self.novelty_param = np.maximum(self.nsr_range[0], self.novelty_param - self.nsr_update)
 
             delta_reward_buffer.append(mean_reward_batch)
 
@@ -319,7 +293,7 @@ class EvolutionStrategy(object):
             if (iteration + 1) % log_interval == 0:
                 logger.record("iteration", iteration + 1)
                 logger.record("reward", np.mean(self.rewards))
-                logger.record("novelty", novelty)
+                logger.record("novelty", np.mean(novelties))
                 logger.record("n_koeff", self.novelty_param)
                 logger.record("total_time", time.time() - start_time)
                 logger.dump(step = iteration+1)

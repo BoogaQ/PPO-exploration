@@ -50,6 +50,7 @@ class BaseAlgorithm(ABC):
             self.env = make_env(env_id, n_envs = 4)
         except:
             self.env = make_env(env_id, n_envs = 1, vec_env_cls = DummyVecEnv) 
+            
         self.num_envs = self.env.num_envs if isinstance(self.env, VecEnv) else 1
         self.state_dim = self.env.observation_space.shape[0]
         self.action_converter = ActionConverter(self.env.action_space)
@@ -124,7 +125,7 @@ class PPO(BaseAlgorithm):
 
         self.policy = Policy(self.env, hidden_size)
         self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam, gamma = gamma)
-        self.optimizer = optim.Adam(self.policy.net.parameters(), lr = lr)  
+        self.optimizer = optim.Adam(self.policy.net.parameters(), lr = lr, eps = 1e-5)  
 
         self.last_obs = self.env.reset()
 
@@ -197,7 +198,7 @@ class PPO(BaseAlgorithm):
                 # Perform optimization
                 self.optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(self.policy.net.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 total_losses.append(loss.item())
@@ -259,13 +260,13 @@ class PPO_RND(BaseAlgorithm):
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1,
+                int_vf_coef = 0.5,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
                 int_hidden_size = 128, 
                 int_lr = 3e-4,
                 rnd_start = 1e+4):   
         super(PPO_RND, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
-
 
         self.policy = Policy(self.env, hidden_size, intrinsic_model = True)
         self.rnd = RndNetwork(self.state_dim, hidden_size = int_hidden_size)
@@ -274,8 +275,12 @@ class PPO_RND(BaseAlgorithm):
         self.rnd_optimizer = optim.Adam(self.rnd.parameters(), lr = int_lr)
 
         self.rnd_start = rnd_start
+        self.int_vf_coef = int_vf_coef
 
         self.last_obs = self.env.reset()
+        self.rnd_normalizer = RunningMeanStd()   
+        self.normalize = True
+        self.last_dones = np.array([0 for _ in range(self.num_envs)])
 
     def collect_samples(self):
         assert self.last_obs is not None    
@@ -299,14 +304,22 @@ class PPO_RND(BaseAlgorithm):
 
             if (self.num_timesteps / self.num_envs) < self.rnd_start:
                 int_rewards = np.zeros_like(rewards)   
+                """
+                unnormalized_obs = self.env.unnormalize_obs(self.last_obs)
+                mean, std, count = np.mean(unnormalized_obs), np.std(unnormalized_obs), len(unnormalized_obs)
+                self.rnd_normalizer.update_from_moments(mean, std ** 2, count)
+                """
             else:
+                #normalized_obs = self.normalize_observations(self.last_obs)
                 int_rewards = self.rnd.int_reward(self.last_obs).detach().numpy()
+                
                 
             self.rollout.add(self.last_obs, actions, rewards, int_rewards, values, int_values, dones, log_probs)
             self.last_obs = obs
+            self.last_dones = dones
             rollout_step += 1
 
-        self.rollout.compute_returns_and_advantages(values, int_values, dones=dones)
+        self.rollout.compute_returns_and_advantages(values, int_values, dones)
 
         return True
 
@@ -358,7 +371,7 @@ class PPO_RND(BaseAlgorithm):
                 entropy_loss = -torch.mean(entropy)
 
                 # Total loss
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + int_value_loss
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + self.int_vf_coef * int_value_loss
 
                 # Perform optimization
                 self.optimizer.zero_grad()
@@ -394,7 +407,7 @@ class PPO_RND(BaseAlgorithm):
                 self.rnd_optimizer.step()
     
     def learn(self, total_timesteps, log_interval, reward_target = None, log_to_file = False):
-        logger.configure("PPO", self.env_id, log_to_file)
+        logger.configure("RND", self.env_id, log_to_file)
         start_time = time.time()
         iteration = 0
 
@@ -429,6 +442,8 @@ class PPO_RND(BaseAlgorithm):
                 break
 
         return self
+    def normalize_observations(self, obs):
+        return np.clip(((obs - self.rnd_normalizer.mean) / np.sqrt(self.rnd_normalizer.var)), -5, 5)
 
 
 class PPO_ICM(BaseAlgorithm):
@@ -444,7 +459,7 @@ class PPO_ICM(BaseAlgorithm):
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 1,
-                int_vf_coef = 0.5,
+                int_vf_coef = 0.1,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
                 int_hidden_size = 32):   

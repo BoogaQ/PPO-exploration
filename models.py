@@ -21,8 +21,6 @@ class Policy(nn.Module):
 
         self.intrinsic = intrinsic_model
 
-        self.action_log_std = nn.Parameter(torch.zeros(1, self.action_dim))
-
         if intrinsic_model:
             self.net = MlpIntrinsic(self.state_dim, self.action_dim, hidden_size = hidden_size)
         else:
@@ -77,21 +75,21 @@ class Policy(nn.Module):
         assert self.intrinsic # Only usable with random network distillation
 
         obs = torch.FloatTensor(obs)
-        logits, state_values, int_state_values = self.net(obs)
-        state_values = state_values.squeeze()
-        int_state_values = int_state_values.squeeze()
 
         if self.action_type == "Discrete":
             logits, state_values, int_state_values = self.net(obs)
             state_values = state_values.squeeze()
             int_state_values = int_state_values.squeeze()
+
             dist = distributions.Categorical(F.softmax(logits, dim = -1))
             actions = dist.sample().squeeze()
             action_log_probs = dist.log_prob(actions).squeeze()
 
         elif self.action_type == "Box":
-            logits, sd, state_values = self.net.forward_continuous(obs)
+            logits, sd, state_values, int_state_values = self.net.forward_continuous(obs)
             state_values = state_values.squeeze()
+            int_state_values = int_state_values.squeeze()
+
             dist = distributions.Normal(logits, torch.exp(sd))
             actions = dist.sample()
             action_log_probs = dist.log_prob(actions)
@@ -114,11 +112,10 @@ class Policy(nn.Module):
             dist_entropy = dist.entropy()
 
         elif self.action_type == "Box":
-            logits, state_values, int_state_values = self.net(obs)
-
+            logits, sd, state_values, int_state_values = self.net.forward_continuous(obs)
             state_values =  state_values.squeeze()
             int_state_values = int_state_values.squeeze()
-            state_values = state_values.squeeze()
+
             dist = distributions.Normal(logits, torch.exp(sd))
             action_log_probs = dist.log_prob(actions)
             dist_entropy = dist.entropy()     
@@ -176,21 +173,23 @@ class MlpIntrinsic(BaseNetwork):
     def __init__(self, input_size, output_size, hidden_size = 128):
         super(MlpIntrinsic, self).__init__()
 
-        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
-                                   nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+        self.actor = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
+                                   nn.Linear(hidden_size, hidden_size), nn.Tanh(),
                                    nn.Linear(hidden_size, output_size)
                                     )
 
         
-        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
-                                    nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+        self.critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
+                                    nn.Linear(hidden_size, hidden_size), nn.Tanh(),
                                     nn.Linear(hidden_size, 1)
                                     )                       
 
-        self.int_critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(),
-                                        nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+        self.int_critic = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh(),
+                                        nn.Linear(hidden_size, hidden_size), nn.Tanh(),
                                         nn.Linear(hidden_size, 1)
                                         )
+
+        self.action_log_std = nn.Parameter(torch.zeros(1, output_size))
 
         self.init_weights()
 
@@ -200,6 +199,14 @@ class MlpIntrinsic(BaseNetwork):
         int_critic = self.int_critic(x)
 
         return actor, critic, int_critic
+    
+    def forward_continuous(self, x):
+        mean = self.actor(x).tanh()
+        log_sd = self.action_log_std.expand_as(mean)
+        critic = self.critic(x)
+        int_critic = self.int_critic(x)
+
+        return mean ,log_sd, critic, int_critic
 
     def __call__(self, x):
         return self.forward(x)
@@ -265,7 +272,6 @@ class IntrinsicCuriosityModule(BaseNetwork):
 
         self.output_size = action_converter.action_output
         self.n_actions = action_converter.num_actions
-
 
         self.state_encoder = nn.Sequential(nn.Linear(input_size, hidden_size), nn.LeakyReLU(),
                                            nn.Linear(hidden_size, hidden_size), nn.LeakyReLU())

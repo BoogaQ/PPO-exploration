@@ -288,9 +288,11 @@ class IntrinsicStorage(RolloutStorage):
         :param last_value: (th.Tensor)
         :param dones: (np.ndarray)
         """
-     
-        self.int_norm.update(self.int_rewards)
-        self.int_rewards = self.int_rewards / np.sqrt(self.int_norm.var + 1e-08)
+
+        mean, std, count = np.mean(self.int_rewards), np.std(self.int_rewards), len(self.int_rewards)
+        self.int_norm.update_from_moments(mean , std ** 2, count)
+
+        self.int_rewards = self.int_rewards / (np.sqrt(self.int_norm.var) + 1e-08)
         logger.record("rollout/mean_int_reward", np.mean(self.int_rewards))
         
         last_value = last_value.clone().cpu().numpy().flatten()
@@ -313,12 +315,13 @@ class IntrinsicStorage(RolloutStorage):
             last_gae_lam = delta + self.gamma * self.gae_lam * next_non_terminal * last_gae_lam
             self.advantages[step] = last_gae_lam
 
-            int_delta = self.int_rewards[step] + self.int_gamma * next_int_values * next_non_terminal - self.int_values[step]
-            int_last_gae_lam = int_delta + self.int_gamma * self.gae_lam * next_non_terminal * int_last_gae_lam
+            int_delta = self.int_rewards[step] + self.int_gamma * next_int_values - self.int_values[step]
+            int_last_gae_lam = int_delta + self.int_gamma * self.gae_lam * int_last_gae_lam
             self.int_advantages[step] = int_last_gae_lam
       
         self.returns = self.advantages + self.values
         self.int_returns = self.int_advantages + self.int_values
+        
 
     def get(self, batch_size = None):
         assert self.full, ''
