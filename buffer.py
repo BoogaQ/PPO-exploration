@@ -4,7 +4,7 @@ import torch
 import logger
 from util import RunningMeanStd
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 
 
@@ -123,7 +123,7 @@ class BaseBuffer(object):
         return reward
 
 class RolloutStorage(BaseBuffer):
-    def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99):
+    def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99, sim_hash = False):
         super(RolloutStorage, self).__init__(buffer_size, obs_space, action_space, n_envs = n_envs)
 
         self.gae_lam = gae_lam
@@ -136,6 +136,15 @@ class RolloutStorage(BaseBuffer):
         self.step = 0
         self.full = False
         self.reset()
+
+        self.count_table = defaultdict(lambda:0)
+        self.A = np.random.randn(16, self.obs_shape[0])
+
+        if sim_hash:
+            self.do_hash = True
+            self.beta = 0.1
+        else:
+            self.do_hash = False
 
         self.RolloutSample = namedtuple('RolloutSample', ['observations', 'actions', 'old_values', 'old_log_probs', 'advantages', 'returns'])
 
@@ -163,6 +172,8 @@ class RolloutStorage(BaseBuffer):
         """
 
         self.observations[self.pos] =       np.array(obs).copy()
+        if self.do_hash:
+            reward = self.sim_hash(obs, reward)       
         self.actions[self.pos] =            np.array(action).copy()
         self.rewards[self.pos] =            np.array(reward).copy()
         self.masks[self.pos] =              np.array(mask).copy()
@@ -172,6 +183,16 @@ class RolloutStorage(BaseBuffer):
         self.pos += 1
         if self.pos == self.buffer_size:
             self.full = True
+
+    def sim_hash(self, obs, rewards):
+        hashed_array = np.greater(np.dot(self.A, obs.T).T, 0).astype(int)  
+
+        hashed_array = np.array([np.array_str(array).replace('[', '').replace(']', '').replace(' ', '') for array in hashed_array])
+        
+        for index, key in enumerate(hashed_array):
+            self.count_table[key] += 1       
+            rewards[index] += self.beta/np.sqrt(self.count_table[key])
+        return rewards
 
 
     def compute_returns_and_advantages(self, last_value, dones):

@@ -11,7 +11,7 @@ from util import RunningMeanStd, ActionConverter
 import time
 from abc import ABC, abstractmethod
 
-from collections import deque
+from collections import deque, defaultdict
 import multiprocessing
 
 import logger
@@ -46,10 +46,8 @@ class BaseAlgorithm(ABC):
                 max_grad_norm):   
 
         self.env_id = env_id
-        try:
-            self.env = make_env(env_id, n_envs = 4)
-        except:
-            self.env = make_env(env_id, n_envs = 1, vec_env_cls = DummyVecEnv) 
+
+        self.env = make_env(env_id, n_envs = 4)
             
         self.num_envs = self.env.num_envs if isinstance(self.env, VecEnv) else 1
         self.state_dim = self.env.observation_space.shape[0]
@@ -120,11 +118,12 @@ class PPO(BaseAlgorithm):
                 ent_coef = .01, 
                 vf_coef = 1,
                 max_grad_norm = 0.2,
-                hidden_size = 128):   
+                hidden_size = 128,
+                sim_hash = True):   
         super(PPO, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
 
         self.policy = Policy(self.env, hidden_size)
-        self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam, gamma = gamma)
+        self.rollout = RolloutStorage(nstep, self.num_envs, self.env.observation_space, self.env.action_space, gae_lam = gae_lam, gamma = gamma, sim_hash = sim_hash)
         self.optimizer = optim.Adam(self.policy.net.parameters(), lr = lr, eps = 1e-5)  
 
         self.last_obs = self.env.reset()
