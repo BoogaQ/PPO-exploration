@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 import logger
-from util import RunningMeanStd
+from util import *
 
 from collections import namedtuple, defaultdict
 
@@ -23,7 +23,6 @@ class BaseBuffer(object):
                  buffer_size,
                  observation_space,
                  action_space,
-                 device = 'cpu',
                  n_envs = 1):
         super(BaseBuffer, self).__init__()
         self.buffer_size = buffer_size
@@ -32,7 +31,6 @@ class BaseBuffer(object):
         self.action_space = action_space
         self.pos = 0
         self.full = False
-        self.device = device
         self.n_envs = n_envs
 
         self.action_dim = 1 if action_space.__class__.__name__ == "Discrete" else action_space.shape[0]
@@ -107,20 +105,6 @@ class BaseBuffer(object):
         if copy:
             return torch.tensor(array)
         return torch.as_tensor(array)
-
-    @staticmethod
-    def _normalize_obs(obs,
-                       env = None):
-        if env is not None:
-            return env.normalize_obs(obs).astype(np.float32)
-        return obs
-
-    @staticmethod
-    def _normalize_reward(reward,
-                          env = None):
-        if env is not None:
-            return env.normalize_reward(reward).astype(np.float32)
-        return reward
 
 class RolloutStorage(BaseBuffer):
     def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99, sim_hash = False):
@@ -363,7 +347,7 @@ class IntrinsicStorage(RolloutStorage):
             yield self._get_samples(indices[start_idx:start_idx + batch_size])
             start_idx += batch_size
 
-    def _get_samples(self, batch_inds, env = None):
+    def _get_samples(self, batch_inds):
         data = (self.observations[batch_inds],
                 self.actions[batch_inds],
                 self.values[batch_inds].flatten(),
@@ -374,6 +358,85 @@ class IntrinsicStorage(RolloutStorage):
                 self.returns[batch_inds].flatten(),
                 self.int_returns[batch_inds].flatten())
         return self.RolloutSample(*tuple(map(self.to_torch, data)))
+
+
+class PrioritizedReplayBuffer(BaseBuffer):
+    def __init__(self, buffer_size, alpha, n_envs, obs_space, action_space):
+        super(PrioritizedReplayBuffer, self).__init__(buffer_size, obs_space, action_space, n_envs)
+
+        self.observations =     []
+        self.actions =          []
+        self.returns =          []
+        self.log_probs =        []
+
+        self.alpha = alpha
+
+        capacity = 1
+        while capacity < buffer_size:
+            capacity *= 2
+        self.buffer_sum = SumSegmentTree(capacity)
+        self.buffer_min = MinSegmentTree(capacity)
+        self.max_priority = 1.0
+
+        self.RolloutSample = namedtuple('RolloutSample', ['observations', 'actions', 'action_log_probs', 'returns', 'indexes'])
+
+    def __len__(self):
+        return len(self.observations)
+
+    def add(self, obs, actions, action_log_probs, returns):
+        if self.pos >= len(self.observations):
+            self.observations.append(obs)
+            self.actions.append(actions)
+            self.log_probs.append(action_log_probs.detach().numpy())
+            self.returns.append(returns)
+        else:
+            self.observations[self.pos] = obs
+            self.actions[self.pos] = actions
+            self.log_probs[self.pos] = action_log_probs
+            self.returns[self.pos] = returns
+
+        self.pos = (self.pos + 1) % self.buffer_size
+
+        self.buffer_sum[self.pos] = self.max_priority ** self.alpha
+        self.buffer_min[self.pos] = self.max_priority ** self.alpha
+
+    def sample_proportional(self, batch_size):
+        res = []
+        for _ in range(batch_size):
+            mass = np.random.rand() * self.buffer_sum.sum(0, len(self.observations)-1)
+            idx = self.buffer_sum.find_prefixsum_idx(mass)
+            res.append(idx)
+        return res
+
+    def update_priorities(self, indexes, priorities):
+        for idx, priority in zip(indexes, priorities):
+            priority = np.maximum(priority, 1e-6)
+            self.buffer_sum[idx] = priority ** self.alpha
+            self.buffer_min[idx] = priority ** self.alpha
+            self.max_priority = np.maximum(self.max_priority, priority)
+
+    def get(self, batch_size):
+        indices = np.array(self.sample_proportional(batch_size))
+
+        # Return everything, don't create minibatches
+        if batch_size is None:
+            batch_size = self.buffer_size * self.n_envs
+
+        start_idx = 0
+        while start_idx < self.buffer_size:
+            yield self._get_samples(indices[start_idx:start_idx + batch_size])
+            start_idx += batch_size
+
+    def _get_samples(self, batch_inds):
+        data = (np.array(self.observations)[batch_inds],
+                np.array(self.actions)[batch_inds],
+                np.array(self.log_probs)[batch_inds],
+                np.array(self.returns)[batch_inds].flatten(),            
+                np.array(batch_inds))
+        return self.RolloutSample(*tuple(map(self.to_torch, data)))
+
+
+
 
 
 

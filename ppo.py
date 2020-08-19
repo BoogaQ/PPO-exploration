@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from buffer import RolloutStorage, IntrinsicStorage
 from models import *
+from sil_module import *
 from env import make_env
 from util import RunningMeanStd, ActionConverter
 
@@ -116,10 +117,11 @@ class PPO(BaseAlgorithm):
                 gae_lam = 0.95, 
                 clip_range = 0.2, 
                 ent_coef = .01, 
-                vf_coef = 1,
+                vf_coef = 0.5,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
-                sim_hash = True):   
+                sim_hash = False,
+                sil = False):   
         super(PPO, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
 
         self.policy = Policy(self.env, hidden_size)
@@ -127,6 +129,10 @@ class PPO(BaseAlgorithm):
         self.optimizer = optim.Adam(self.policy.net.parameters(), lr = lr, eps = 1e-5)  
 
         self.last_obs = self.env.reset()
+
+        self.sil = sil
+        if sil:
+            self.sil_module =  SilModule(100000, self.policy, self.optimizer, self.num_envs, self.env)
 
     def collect_samples(self):
         assert self.last_obs is not None    
@@ -142,11 +148,16 @@ class PPO(BaseAlgorithm):
             if any(dones):
                 self.num_episodes += sum(dones)
 
+            
+
             self.num_timesteps += self.num_envs
             self.update_info_buffer(infos)
 
             actions = actions.reshape(self.num_envs, self.action_converter.action_output)
             log_probs = log_probs.reshape(self.num_envs, self.action_converter.action_output)
+
+            if self.sil:
+                self.sil_module.step(self.last_obs, actions, log_probs, rewards, dones)
             
             self.rollout.add(self.last_obs, actions, rewards, values, dones, log_probs)
             self.last_obs = obs
@@ -176,7 +187,6 @@ class PPO(BaseAlgorithm):
 
                 # Compute policy gradient ratio of current actions probs over previous
                 ratio = torch.exp(action_log_probs - old_log_probs)
-
                 # Compute surrogate loss
                 surr_loss_1 = advantages * ratio
                 surr_loss_2 = advantages * torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
@@ -204,6 +214,9 @@ class PPO(BaseAlgorithm):
                 policy_losses.append(policy_loss.item())
                 value_losses.append(value_loss.item())
                 entropy_losses.append(entropy_loss.item())
+
+        if self.sil:
+            self.sil_module.train(10, 512, clip_range = 0.2)
 
         logger.record("train/entropy_loss", np.mean(entropy_losses))
         logger.record("train/policy_gradient_loss", np.mean(policy_losses))
@@ -258,7 +271,7 @@ class PPO_RND(BaseAlgorithm):
                 gae_lam = 0.95, 
                 clip_range = 0.2, 
                 ent_coef = .01, 
-                vf_coef = 1,
+                vf_coef = 0.5,
                 int_vf_coef = 0.5,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
@@ -457,7 +470,7 @@ class PPO_ICM(BaseAlgorithm):
                 gae_lam = 0.95, 
                 clip_range = 0.2, 
                 ent_coef = .01, 
-                vf_coef = 1,
+                vf_coef = 0.5,
                 int_vf_coef = 0.1,
                 max_grad_norm = 0.2,
                 hidden_size = 128,

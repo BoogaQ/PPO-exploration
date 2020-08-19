@@ -24,8 +24,8 @@ import mujoco_py
 if __name__ == "__main__":
 
     for i in range(10):
-        model = PPO(env_id = "Acrobot-v1", hidden_size = 64, lr = 0.001, gamma = 0.99, gae_lam = 0.95, max_grad_norm = 5, 
-                    nstep = 1024, batch_size = 64, n_epochs = 10, clip_range = 0.2, ent_coef = 0.01)
+        model = PPO(env_id = "Reacher-v2", hidden_size = 64, lr = 0.0001, gamma = 0.99, gae_lam = 0.95, max_grad_norm = 5, 
+                    nstep = 2048, batch_size = 64, n_epochs = 10, clip_range = 0.2, ent_coef = 0.00, sil = True)
         model.learn(total_timesteps = 1e+6, log_interval = 1, log_to_file = False)
     
 
