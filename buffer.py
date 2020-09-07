@@ -124,6 +124,8 @@ class RolloutStorage(BaseBuffer):
         self.count_table = defaultdict(lambda:0)
         self.A = np.random.randn(16, self.obs_shape[0])
 
+        self.reward_rms = RunningMeanStd()
+
         if sim_hash:
             self.do_hash = True
             self.beta = 0.1
@@ -193,6 +195,13 @@ class RolloutStorage(BaseBuffer):
         :param dones: (np.ndarray)
         """
 
+        """
+
+        mean, std, count = np.mean(self.rewards), np.std(self.rewards), len(self.rewards)
+        self.reward_rms.update_from_moments(mean, std ** 2, count)
+        self.rewards = self.rewards / (np.sqrt(self.reward_rms.var) + 1e-8)
+        """
+
         last_value = last_value.clone().cpu().numpy().flatten()
         last_gae_lam = 0
 
@@ -255,7 +264,6 @@ class IntrinsicStorage(RolloutStorage):
                                                             'returns', 
                                                             'int_returns'])
 
-        self.int_norm = RunningMeanStd()    
 
     def reset(self):
         self.int_rewards =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
@@ -294,10 +302,6 @@ class IntrinsicStorage(RolloutStorage):
         :param dones: (np.ndarray)
         """
 
-        mean, std, count = np.mean(self.int_rewards), np.std(self.int_rewards), len(self.int_rewards)
-        self.int_norm.update_from_moments(mean , std ** 2, count)
-
-        self.int_rewards = self.int_rewards / (np.sqrt(self.int_norm.var) + 1e-08)
         logger.record("rollout/mean_int_reward", np.mean(self.int_rewards))
         
         last_value = last_value.clone().cpu().numpy().flatten()
@@ -368,6 +372,7 @@ class PrioritizedReplayBuffer(BaseBuffer):
         self.actions =          []
         self.returns =          []
         self.log_probs =        []
+        self.weights = []
 
         self.alpha = alpha
 
@@ -378,7 +383,7 @@ class PrioritizedReplayBuffer(BaseBuffer):
         self.buffer_min = MinSegmentTree(capacity)
         self.max_priority = 1.0
 
-        self.RolloutSample = namedtuple('RolloutSample', ['observations', 'actions', 'action_log_probs', 'returns', 'indexes'])
+        self.RolloutSample = namedtuple('RolloutSample', ['observations', 'actions', 'action_log_probs', 'returns', 'weights','indexes'])
 
     def __len__(self):
         return len(self.observations)
@@ -415,8 +420,18 @@ class PrioritizedReplayBuffer(BaseBuffer):
             self.buffer_min[idx] = priority ** self.alpha
             self.max_priority = np.maximum(self.max_priority, priority)
 
-    def get(self, batch_size):
+    def get(self, batch_size, beta):
         indices = np.array(self.sample_proportional(batch_size))
+
+        if beta > 0:
+            weights = []
+            p_min = self.buffer_min.min() / self.buffer_sum.sum()
+            max_weight = (p_min * len(self.observations)) ** (-beta)
+            for idx in indices:
+                p_sample = self.buffer_sum[idx] / self.buffer_sum.sum()
+                weight = (p_sample * len(self.observations)) ** (-beta)
+                weights.append(weight / max_weight)
+            self.weights = np.array(weights)
 
         # Return everything, don't create minibatches
         if batch_size is None:
@@ -431,7 +446,8 @@ class PrioritizedReplayBuffer(BaseBuffer):
         data = (np.array(self.observations)[batch_inds],
                 np.array(self.actions)[batch_inds],
                 np.array(self.log_probs)[batch_inds],
-                np.array(self.returns)[batch_inds].flatten(),            
+                np.array(self.returns)[batch_inds].flatten(),        
+                np.array(self.weights),    
                 np.array(batch_inds))
         return self.RolloutSample(*tuple(map(self.to_torch, data)))
 

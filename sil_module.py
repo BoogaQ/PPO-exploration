@@ -18,6 +18,8 @@ class SilModule():
         self.total_steps = []
         self.total_rewards = []
 
+        self.beta = 1
+
     def step(self, obs, actions, log_probs, rewards, dones):
         for n in range(len(self.trajectories)):
             self.trajectories[n].append([obs[n], actions[n], log_probs[n], rewards[n]])
@@ -56,7 +58,7 @@ class SilModule():
         sil_losses, mean_advantages = [], []
         for epoch in range(n_epochs):
             if self.sample_batch(batch_size) is not None:
-                observations, actions, old_log_probs, returns, indices = next(self.sample_batch(batch_size))
+                observations, actions, old_log_probs, returns, weights, indices = next(self.sample_batch(batch_size))
                 observations = observations.float()
 
                 state_values, action_log_probs, entropy = self.policy.evaluate(observations, actions)
@@ -71,8 +73,8 @@ class SilModule():
                 masks = torch.tensor(masks, dtype=torch.float32).unsqueeze(1)         
 
                 # Compute surrogate loss
-                surr_loss_1 = clipped_advantages * ratio
-                surr_loss_2 = clipped_advantages * torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
+                surr_loss_1 = weights.unsqueeze(1) * clipped_advantages * ratio
+                surr_loss_2 = weights.unsqueeze(1) * clipped_advantages * torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
                 policy_loss = -torch.min(surr_loss_1, surr_loss_2).mean()
 
                 entropy_loss = -(entropy * masks).mean()
@@ -106,7 +108,7 @@ class SilModule():
     def sample_batch(self, batch_size):
         if len(self.buffer) > 100:
             batch_size = min(batch_size, len(self.buffer))
-            return self.buffer.get(batch_size)
+            return self.buffer.get(batch_size, self.beta)
         else:
             return None
 

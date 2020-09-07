@@ -213,12 +213,10 @@ def configure(algorithm, environment, log_to_file = False, folder = None):
         folder = "./logs"
     
     folder = os.path.join(folder, algorithm, environment)
-    os.makedirs(folder, exist_ok=True)
-
     
-
     output = [HumanOutputFormat(sys.stdout)]
     if log_to_file:       
+        os.makedirs(folder, exist_ok=True)
         file_name = "run" + datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S-%f") + ".csv"
         file_name = os.path.join(folder, file_name)
         output.append(CSVOutputFormat(file_name))

@@ -8,5 +8,5 @@ def make_env(env_id,
             n_envs,
             vec_env_cls = SubprocVecEnv):
     env = make_vec_env(env_id, n_envs, vec_env_cls = SubprocVecEnv)
-    env = VecNormalize(env)
+    env = VecNormalize(env, norm_reward = True)
     return env

@@ -217,14 +217,18 @@ class RndNetwork(BaseNetwork):
         super(RndNetwork, self).__init__()
         
         self.predictor = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                                 nn.ELU(),
+                                                 nn.LeakyReLU(),
+                                                 nn.Linear(hidden_size, hidden_size),
+                                                 nn.LeakyReLU(),
                                                  nn.Linear(hidden_size, hidden_size),
                                                  nn.ELU(),
                                                  nn.Linear(hidden_size, 1)
                                                  )
         
         self.target = nn.Sequential(nn.Linear(input_size, hidden_size),
-                                    nn.ELU(),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(hidden_size, hidden_size),
+                                    nn.LeakyReLU(),
                                     nn.Linear(hidden_size, 1)
                                     )
 
@@ -273,14 +277,15 @@ class IntrinsicCuriosityModule(BaseNetwork):
         self.output_size = action_converter.action_output
         self.n_actions = action_converter.num_actions
 
-        self.state_encoder = nn.Sequential(nn.Linear(input_size, hidden_size), nn.LeakyReLU(),
-                                           nn.Linear(hidden_size, hidden_size), nn.LeakyReLU())
-
-        self.forward_model = nn.Sequential(nn.Linear(self.n_actions + hidden_size, hidden_size),
+        self.state_encoder = nn.Sequential(nn.Linear(input_size, hidden_size), 
                                            nn.LeakyReLU(),
-                                           nn.Linear(hidden_size, hidden_size))
+                                           nn.Linear(hidden_size, self.feature_size))
 
-        self.inverse_model = nn.Sequential(nn.Linear(hidden_size * 2, hidden_size),
+        self.forward_model = nn.Sequential(nn.Linear(self.n_actions + self.feature_size, hidden_size),
+                                           nn.LeakyReLU(),
+                                           nn.Linear(hidden_size, self.feature_size))
+
+        self.inverse_model = nn.Sequential(nn.Linear(self.feature_size * 2, hidden_size),
                                            nn.LeakyReLU(),
                                            nn.Linear(hidden_size, self.n_actions))
         
@@ -295,11 +300,11 @@ class IntrinsicCuriosityModule(BaseNetwork):
         action = self.action_encoder(action.float() if self.action_converter.action_type == "Box" else action.squeeze().long())
 
         state_ft = self.state_encoder(state)
-        next_state_ft = self.state_encoder(next_state)
-        next_state_ft = next_state_ft.view(-1, self.feature_size)
+        next_state_ft = self.state_encoder(next_state).view(-1, self.feature_size)
 
         action_hat = self.inverse_model(torch.cat((state_ft, next_state_ft), 1))
         next_state_hat = self.forward_model(torch.cat((state_ft, action), 1))
+        
         return action_hat, next_state_hat, next_state_ft
 
     def int_reward(self, state, next_state, action):
@@ -311,4 +316,4 @@ class IntrinsicCuriosityModule(BaseNetwork):
         next_state_hat = self.forward_model(torch.cat((state_ft, action), 1))
 
         int_rew = (next_state_hat - next_state_ft).pow(2).mean(dim = -1)
-        return torch.clamp(int_rew, -1, 1)
+        return torch.clamp(int_rew, -5, 5)
