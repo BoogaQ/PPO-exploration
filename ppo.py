@@ -1,3 +1,4 @@
+# Most of the code gotten from stable baselines github repository at https://github.com/DLR-RM/stable-baselines3/tree/master/stable_baselines3
 from gym import spaces
 import torch
 import torch.optim as optim
@@ -108,11 +109,33 @@ class BaseAlgorithm(ABC):
                 self.ep_info_buffer.extend([maybe_ep_info])
 
     def normalize_obs(self, obs):
+        """
+        Update normalization parameters and normalize observations
+        :param obs: (np.ndarray) observation array
+        :return obs: (np.ndarray) normalized observation array
+        """
         obs = np.clip((obs - self.obs_rms.mean) / np.sqrt(self.obs_rms.var + 1e-10), -5, 5).astype(float)
         return obs
 
 
 class PPO(BaseAlgorithm):
+    """
+    Base algorithm class that each agent has to inherit from.
+    :param env_id: (str)            name of environment to perform training on
+    :param lr: (float)              learning rate
+    :param nstep: (int)             storage rollout steps
+    :param batch_size: (int)        batch size for training
+    :param n_epochs: (int)          number of training epochs
+    :param gamma: (float)           discount factor
+    :param gae_lam: (float)         lambda for generalized advantage estimation
+    :param clip_range: (float)      clip range for surrogate loss
+    :param ent_coef: (float)        entropy loss coefficient
+    :param vf_coef: (float)         value loss coefficient
+    :param max_grad_norm: (float)   max grad norm for optimizer
+    :param hidden_size: (int)       size of the hidden layers of policy
+    :param sim_hash: (bool)         sim hash switch
+    :param sil: (bool)              self imitation learning switch
+    """
     def __init__(self, *, 
                 env_id, 
                 lr = 3e-4, 
@@ -141,6 +164,9 @@ class PPO(BaseAlgorithm):
             self.sil_module =  SilModule(50000, self.policy, self.optimizer, self.num_envs, self.env)
 
     def collect_samples(self):
+        """
+        Collect one full rollout, as determined by the nstep parameter, and add it to the buffer
+        """
         assert self.last_obs is not None    
         rollout_step = 0
         self.rollout.reset()
@@ -172,6 +198,9 @@ class PPO(BaseAlgorithm):
         return True
 
     def train(self):
+        """
+        Use the collected data from the buffer to train the policy network
+        """
         total_losses, policy_losses, value_losses, entropy_losses = [], [], [], []
 
         for epoch in range(self.n_epochs):
@@ -230,6 +259,14 @@ class PPO(BaseAlgorithm):
         self._n_updates += self.n_epochs
     
     def learn(self, total_timesteps, log_interval, reward_target = None, log_to_file = False):
+        """
+        Initiate the training of the algorithm.
+
+        :param total_timesteps: (int)   total number of timesteps the agent is to run for
+        :param log_interval: (int)      how often to perform logging
+        :param reward_target: (int)     reaching the reward target stops training early
+        :param log_to_file: (bool)      specify whether output ought to be logged
+        """
         if self.sim_hash:
             logger.configure("PPO_SimHash", self.env_id, log_to_file)
         elif self.sil:
@@ -271,6 +308,26 @@ class PPO(BaseAlgorithm):
         return self
 
 class PPO_RND(BaseAlgorithm):
+    """
+    Base algorithm class that each agent has to inherit from.
+    :param env_id: (str)            name of environment to perform training on
+    :param lr: (float)              learning rate
+    :param int_lr: (float)          intrinsic learning rate
+    :param nstep: (int)             storage rollout steps
+    :param batch_size: (int)        batch size for training
+    :param n_epochs: (int)          number of training epochs
+    :param gamma: (float)           discount factor
+    :param int_gamma: (float)       discount factor for intrinsic rewards
+    :param gae_lam: (float)         lambda for generalized advantage estimation
+    :param clip_range: (float)      clip range for surrogate loss
+    :param ent_coef: (float)        entropy loss coefficient
+    :param vf_coef: (float)         value loss coefficient
+    :param int_vf_coef: (float)     intrinsic value loss coefficient
+    :param max_grad_norm: (float)   max grad norm for optimizer
+    :param hidden_size: (int)       size of the hidden layers of policy
+    :param int_hidden_size: (int)   size of the hidden layers for the RND target and predictor networks
+    :param rnd_start: (int)         the number of initial steps to normalize observations
+    """
     def __init__(self, *, 
                 env_id, 
                 lr = 3e-4, 
@@ -308,6 +365,9 @@ class PPO_RND(BaseAlgorithm):
         self.last_dones = np.array([0 for _ in range(self.num_envs)])
 
     def collect_samples(self):
+        """
+        Collect one full rollout, as determined by the nstep parameter, and add it to the buffer
+        """
         assert self.last_obs is not None    
         rollout_step = 0
         self.rollout.reset()
@@ -329,14 +389,7 @@ class PPO_RND(BaseAlgorithm):
 
             if (self.num_timesteps / self.num_envs) < self.rnd_start:
                 int_rewards = np.zeros_like(rewards)   
-
-                """
-                unnormalized_obs = self.env.unnormalize_obs(self.last_obs)
-                mean, std, count = np.mean(unnormalized_obs), np.std(unnormalized_obs), len(unnormalized_obs)
-                self.rnd_normalizer.update_from_moments(mean, std ** 2, count)
-                """
                 self.obs_rms.update(self.env.unnormalize_obs(self.last_obs))
-
             else:
                 normalized_obs = self.normalize_obs(obs)
                 int_rewards = self.rnd.int_reward(normalized_obs).detach().numpy()
@@ -354,6 +407,9 @@ class PPO_RND(BaseAlgorithm):
         return True
 
     def train(self):
+        """
+        Use the collected data from the buffer to train the policy network
+        """
         total_losses, policy_losses, value_losses, entropy_losses, intrinsic_losses = [], [], [], [], []
         rnd_trained = False
         for epoch in range(self.n_epochs):
@@ -429,6 +485,11 @@ class PPO_RND(BaseAlgorithm):
         self._n_updates += self.n_epochs
 
     def train_rnd(self, batch):   
+        """
+        Train the predictor RND network
+        
+        :param batch: (np.ndarray) batch from the current experience buffer
+        """
         obs = batch.observations #self.rew_norm_and_clip(batch.observations.numpy())
         obs = self.normalize_obs(obs.numpy())
         pred, target = self.rnd(torch.from_numpy(obs).float())      
@@ -441,6 +502,14 @@ class PPO_RND(BaseAlgorithm):
         self.rnd_optimizer.step()
     
     def learn(self, total_timesteps, log_interval, reward_target = None, log_to_file = False):
+        """
+        Initiate the training of the algorithm.
+
+        :param total_timesteps: (int)   total number of timesteps the agent is to run for
+        :param log_interval: (int)      how often to perform logging
+        :param reward_target: (int)     reaching the reward target stops training early
+        :param log_to_file: (bool)      specify whether output ought to be logged
+        """
         logger.configure("RND", self.env_id, log_to_file)
         start_time = time.time()
         iteration = 0
@@ -471,11 +540,30 @@ class PPO_RND(BaseAlgorithm):
                 logger.record("time/total_time", (time.time() - start_time))
                 logger.dump(step=self.num_timesteps)   
                 break
-
         return self
 
 
 class PPO_ICM(BaseAlgorithm):
+    """
+    Base algorithm class that each agent has to inherit from.
+    :param env_id: (str)                    name of environment to perform training on
+    :param lr: (float)                      learning rate
+    :param int_lr: (float)                  intrinsic learning rate
+    :param nstep: (int)                     storage rollout steps
+    :param batch_size: (int)                batch size for training
+    :param n_epochs: (int)                  number of training epochs
+    :param gamma: (float)                   discount factor
+    :param gae_lam: (float)                 lambda for generalized advantage estimation
+    :param clip_range: (float)              clip range for surrogate loss
+    :param ent_coef: (float)                entropy loss coefficient
+    :param vf_coef: (float)                 value loss coefficient
+    :param max_grad_norm: (float)           max grad norm for optimizer
+    :param hidden_size: (int)               size of the hidden layers of policy
+    :param int_hidden_size: (int)           size of the hidden layers for the RND target and predictor networks
+    :param int_rew_integration: (float):    weighting of extrinsic vs intrinsic rewards
+    :param beta: (float)                    beta parameter weighing forward vs inverse dynamic models
+    :param policy_weight: (float)           parameter specifying weight of policy vs intrinsic loss
+    """
     def __init__(self, *, 
                 env_id, 
                 lr = 3e-4, 
@@ -488,12 +576,13 @@ class PPO_ICM(BaseAlgorithm):
                 clip_range = 0.2, 
                 ent_coef = .01, 
                 vf_coef = 0.5,
-                int_rew_integration = 0.05,
-                beta = 0.2,
-                policy_weight = 1,
                 max_grad_norm = 0.2,
                 hidden_size = 128,
-                int_hidden_size = 32):   
+                int_hidden_size = 32,
+                int_rew_integration = 0.05,
+                beta = 0.2,
+                policy_weight = 1          
+                ):   
         super(PPO_ICM, self).__init__(env_id, lr, nstep, batch_size, n_epochs, gamma, gae_lam, clip_range, ent_coef, vf_coef, max_grad_norm)                   
      
         self.int_rew_integration = int_rew_integration
@@ -512,7 +601,9 @@ class PPO_ICM(BaseAlgorithm):
 
 
     def collect_samples(self):
-
+        """
+        Collect one full rollout, as determined by the nstep parameter, and add it to the buffer
+        """
         assert self.last_obs is not None
         
         rollout_step = 0
@@ -558,6 +649,9 @@ class PPO_ICM(BaseAlgorithm):
         return True
 
     def train(self):
+        """
+        Use the collected data from the buffer to train the policy network
+        """
         total_losses, policy_losses, value_losses, entropy_losses, icm_losses = [], [], [], [], []
 
         inv_criterion = self.action_converter.get_loss()
@@ -619,6 +713,14 @@ class PPO_ICM(BaseAlgorithm):
         self._n_updates += self.n_epochs
     
     def learn(self, total_timesteps, log_interval = 5, reward_target = None, log_to_file = False):
+        """
+        Initiate the training of the algorithm.
+
+        :param total_timesteps: (int)   total number of timesteps the agent is to run for
+        :param log_interval: (int)      how often to perform logging
+        :param reward_target: (int)     reaching the reward target stops training early
+        :param log_to_file: (bool)      specify whether output ought to be logged
+        """
         logger.configure("ICM", self.env_id, log_to_file)
         start_time = time.time()
         iteration = 0
@@ -651,5 +753,4 @@ class PPO_ICM(BaseAlgorithm):
                 logger.record("time/total_time", (time.time() - start_time))
                 logger.dump(step=self.num_timesteps)   
                 break
-
         return self

@@ -1,5 +1,6 @@
 # Taken base code from https://github.com/alirezamika/evostra
 # https://github.com/BY571/Deep-Reinforcement-Learning-Algorithm-Collection
+
 import numpy as np
 import multiprocessing as mp
 import itertools
@@ -11,19 +12,19 @@ from sklearn.neighbors import NearestNeighbors
 from collections import deque
 import logger
 
-np.random.seed(0)
 
 def worker_process(arg):
     get_reward_func, weights, env = arg
     return get_reward_func(weights, env)
 
-def worker_process2(arg):
-    get_reward_func, weights, archive = arg
-    return get_reward_func(weights, archive)
-
 import numpy as np
 
 class FeedForwardNetwork(object):
+    """
+    Neural network acting as a policy for evolution strategies 
+    :param env: (gym.env) gym environment
+    :param hidden_sizes: (np.ndarray) array containing sizes of hidden layers
+    """
     def __init__(self, env, hidden_sizes):
         self.env = env
         self.action_space = self.env.action_space.__class__.__name__
@@ -33,15 +34,23 @@ class FeedForwardNetwork(object):
         for index in range(len(layer_sizes)-1):
             self.weights.append(np.random.randn(layer_sizes[index], layer_sizes[index+1]))
 
-
     @property
     def num_actions(self):
+        """
+        Returns the action dimensions for an environment
+        :return: (int) number of actions
+        """
         if self.action_space == "Discrete":
             return self.env.action_space.n
         else:
             return self.env.action_space.shape[0]
 
     def predict(self, inp):
+        """
+        Forward propagation step. Outputs action selection
+        :param inp: (np.ndarray) observation
+        :return: (np.ndarray) return action
+        """
         out = np.expand_dims(inp.flatten(), 0)
         for i in range(len(self.weights)-1):
             try:
@@ -92,6 +101,23 @@ class FeedForwardNetwork(object):
 
 
 class EvolutionStrategy(object):
+    """
+    Implementation of the evolution strategies with adaptive rewards
+    http://papers.nips.cc/paper/7750-improving-exploration-in-evolution-strategies-for-deep-reinforcement-learning-via-a-population-of-novelty-seeking-agents
+
+    :param env_id: (str) name of an environment
+    :param hidden_sizes: (np.ndarray) array containing the sizes of hidden layers
+    :param nsr_plateu: (float) the range deciding whether to increase the novelty parameter
+    :param nsr_range: (np.ndarray) the min and max values of the novelty weight
+    :param nsr_update: (float) the amount to update the novelty weight by
+    :param population_size: (int) population size
+    :param sigma: (float) perturbation parameter
+    :param learning_rate: (float) learning rate
+    :param decay: (float) learning rate decay parameter
+    :param novelty_param: (float) initial novelty weight
+    :param num_threads: (int) number of processes 
+
+    """
     def __init__(self, env_id, hidden_sizes, nsr_plateu = 1.5, nsr_range = [0, 1], nsr_update = 0.05, population_size=50, sigma=0.1, learning_rate=0.01, decay=0.9995, novelty_param = 0.5,
                  num_threads=1):
         self.env_id = env_id
@@ -112,6 +138,9 @@ class EvolutionStrategy(object):
         self.nsr_update = nsr_update
 
     def _get_weights_try(self, w, p):
+        """
+        Jitter current parameters by a population of jitters
+        """
         weights_try = []
         for index, pop in enumerate(p):
             jittered = self.SIGMA * pop
@@ -119,9 +148,17 @@ class EvolutionStrategy(object):
         return weights_try
 
     def get_weights(self):
+        """
+        Retrieves model weights
+        """
         return self.weights
 
     def evaluate(self, weights, env):
+        """
+        Evaluate the current policy
+        :param weights: (np.ndarray) policy weights
+        :param env: (gym.environment) environment
+        """
         self.model.set_weights(weights)
         obs = env.reset()
         total_r = 0
@@ -136,6 +173,9 @@ class EvolutionStrategy(object):
         return total_r
 
     def _get_population(self):
+        """
+        Create a population of jitters
+        """
         population = []
         for i in range(self.POPULATION_SIZE):
             x = []
@@ -145,6 +185,11 @@ class EvolutionStrategy(object):
         return population
 
     def _get_rewards(self, pool, population):
+        """
+        Evaluate each jittered set of parameters 
+        :param pool: (multiprocessing.Pool) process pool
+        :param population: (np.ndarray) population of parameter jitters
+        """
         if pool is not None:
             worker_args = ((self.evaluate, self._get_weights_try(self.weights, p), self.env) for p in population)
             rewards = pool.map(worker_process, worker_args)
@@ -156,33 +201,13 @@ class EvolutionStrategy(object):
         rewards = np.array(rewards)
         return rewards.squeeze()
 
-    def _get_rew_novelties(self, pool, population, archive):
-        if pool is not None:
-            worker_args = ((self.evaluate, self._get_weights_try(self.weights, p), self.env) for p in population)
-            rewards = pool.map(worker_process, worker_args)
-
-            novelty_args = ((self.get_novelty, self._get_weights_try(self.weights, p), archive) for p in population)
-            novelties = pool.map(worker_process2, novelty_args)
-
-        else:
-            rewards = []
-            novelties = []
-            S = np.minimum(self.K, len(archive))
-            for p in population:
-                weights_try = self._get_weights_try(self.weights, p)
-                rewards.append(self.evaluate(weights_try, self.env))
-                b_phi_theta = self.get_behavior_char(weights_try, self.env)
-                distance = self.get_kNN(archive, b_phi_theta, S)
-                novelty = distance / S
-                if novelty <= 1e-3:
-                    novelty = 5e-3
-                novelties.append(novelty)
-
-        rewards = np.array(rewards)
-        novelties = np.array(novelties)
-        return rewards.squeeze(), novelties.squeeze()
-
     def get_novelty(self, p, archive):
+        """
+        Get novelty of a policy
+        :param p: (np.ndarray) policy weights
+        :param archive: (np.ndarray) behavioural archive
+        :return: (float) policy novelty
+        """
         S = np.minimum(self.K, len(archive))
         b_phi_theta = self.get_behavior_char(p, self.env)
         distance = self.get_kNN(archive, b_phi_theta, S)
@@ -193,6 +218,12 @@ class EvolutionStrategy(object):
 
 
     def _update_weights(self, rewards, population, novelty = None):
+        """
+        Update the weights of the policy based on rewards achieved by each perturbation
+        :param rewards: (np.ndarray) array of rewards for each perturbation
+        :param population: (np.ndarray) array containing perturbations
+        :param novelty: (float) policy novelty
+        """
         std = rewards.std()
         if std == 0:
             return
@@ -204,7 +235,7 @@ class EvolutionStrategy(object):
                 #novelties = (novelties - np.mean(novelties)) / (np.std(novelties) + 1e-8)
                 novelties = np.zeros(rewards.shape)
                 novelties.fill(novelty)
-                novelties_score = (1 - self.novelty_param) * np.dot(layer_population.T, rewards).T + self.novelty_param * np.dot(layer_population.T, novelties).T)/2
+                novelties_score = ((1 - self.novelty_param) * np.dot(layer_population.T, rewards).T + self.novelty_param * np.dot(layer_population.T, novelties).T)/2
                 self.weights[index] = w + update_factor * novelties_score
             else:
                 self.weights[index] = w + update_factor * np.dot(layer_population.T, rewards).T         
@@ -216,7 +247,9 @@ class EvolutionStrategy(object):
         The value is defined in this case as the final obs of agent in the environment.
     
         Important to find a good behavior characterization. Depents on the environment! <<< -> final obs, step count ... 
-        
+        :param weights: (np.ndarray) policy weights
+        :param env: (gym.environment) environment  
+        :return: (np.ndarray) behaviour characteristic of tested policy 
         """
         self.model.set_weights(weights)
         obs = env.reset()
@@ -235,6 +268,10 @@ class EvolutionStrategy(object):
         """
         Searches and samples the K-nearest-neighbors from the archive and a new behavior characterization
         returns the summed distance between input behavior characterization and the bc in the archive
+
+        :param archive: (np.ndarray) archive containing behaviour characteristics
+        :param bc: (np.ndarray) behaviour characteristic
+        :param n_neighbours: (int) number of neighbours
         
         """
         archive = np.concatenate(archive)
@@ -257,6 +294,14 @@ class EvolutionStrategy(object):
 
 
     def run(self, total_timesteps, reward_target = None, log_interval=1, log_to_file = False):
+        """
+        Run the algorithm
+
+        :param total_timesteps: (int) total timesteps to run the environment for
+        :param reward_target: (int) the reward target indiating termination of the algorithm
+        :param log_interval: (int) logging frequency
+        :param log_to_file: (bool) log to file or not
+        """
         logger.configure("ES", self.env_id, log_to_file)
 
         MPS = 2

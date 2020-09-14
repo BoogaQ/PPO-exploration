@@ -1,3 +1,5 @@
+# taken from https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/buffers.py
+
 import numpy as np
 import torch
 
@@ -107,6 +109,16 @@ class BaseBuffer(object):
         return torch.as_tensor(array)
 
 class RolloutStorage(BaseBuffer):
+    """
+    Base buffer used for PPO algorithms with only one reward stream.
+    :param buffer_size: (int) Max number of element in the buffer
+    :param n_envs: (int) Number of parallel environments
+    :param obs_space: (spaces.Space) Observation space
+    :param action_space: (spaces.Space) Action space
+    :param gae_lam: (float): Generalized advantage estimation parameter
+    :param gamma: (float) discount factor
+    :param sim_hash: (bool) to use simhash or not
+    """
     def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99, sim_hash = False):
         super(RolloutStorage, self).__init__(buffer_size, obs_space, action_space, n_envs = n_envs)
 
@@ -135,6 +147,9 @@ class RolloutStorage(BaseBuffer):
         self.RolloutSample = namedtuple('RolloutSample', ['observations', 'actions', 'old_values', 'old_log_probs', 'advantages', 'returns'])
 
     def reset(self):
+        """
+        Resets buffer to zero removing all entries
+        """
         self.observations =     np.zeros((self.buffer_size, self.n_envs, *self.obs_shape), dtype = 'float32')
         self.actions =          np.zeros((self.buffer_size, self.n_envs, self.action_dim))
         self.rewards =          np.zeros((self.buffer_size, self.n_envs), dtype = 'float32')
@@ -151,9 +166,9 @@ class RolloutStorage(BaseBuffer):
         """
         :param obs: (np.Tensor) Observation
         :param action: (np.Tensor) Action
-        :param reward: (np.Tensor)
-        :param done: (np.Tensor) End of episode signal.
+        :param reward: (np.Tensor) Reward
         :param value: (np.Tensor) estimated value of the current state following the current policy.
+        :param done: (np.Tensor) End of episode signal.
         :param log_prob: (np.Tensor) log probability of the action following the current policy.
         """
 
@@ -171,8 +186,12 @@ class RolloutStorage(BaseBuffer):
             self.full = True
 
     def sim_hash(self, obs, rewards):
+        """
+        Compute reward bonus based on visitation count
+        param obs: (np.Tensor) Observation
+        param rewards: (np.Tensor) Reward
+        """
         hashed_array = np.greater(np.dot(self.A, obs.T).T, 0).astype(int)  
-
         hashed_array = np.array([np.array_str(array).replace('[', '').replace(']', '').replace(' ', '') for array in hashed_array])
         
         for index, key in enumerate(hashed_array):
@@ -195,13 +214,6 @@ class RolloutStorage(BaseBuffer):
         :param dones: (np.ndarray)
         """
 
-        """
-
-        mean, std, count = np.mean(self.rewards), np.std(self.rewards), len(self.rewards)
-        self.reward_rms.update_from_moments(mean, std ** 2, count)
-        self.rewards = self.rewards / (np.sqrt(self.reward_rms.var) + 1e-8)
-        """
-
         last_value = last_value.clone().cpu().numpy().flatten()
         last_gae_lam = 0
 
@@ -219,6 +231,10 @@ class RolloutStorage(BaseBuffer):
     
 
     def get(self, batch_size = None):
+        """
+        Helper function to retrieve data from buffer in batches
+        :param batch_size: (int) batch size
+        """
         assert self.full, ''
         indices = np.random.permutation(self.buffer_size * self.n_envs)
 
@@ -237,7 +253,11 @@ class RolloutStorage(BaseBuffer):
             yield self._get_samples(indices[start_idx:start_idx + batch_size])
             start_idx += batch_size
 
-    def _get_samples(self, batch_inds, env = None):
+    def _get_samples(self, batch_inds):
+        """
+        Helper function to convert numpy arrays to tensors of correct shape
+        :param batch_inds: (np.ndarray) array of buffer indices
+        """
         data = (self.observations[batch_inds],
                 self.actions[batch_inds],
                 self.values[batch_inds].flatten(),
@@ -249,6 +269,16 @@ class RolloutStorage(BaseBuffer):
 
 
 class IntrinsicStorage(RolloutStorage):
+    """
+    Intrinsic buffer used for PPO algorithms with two reward streams (RND).
+    :param buffer_size: (int) Max number of element in the buffer
+    :param n_envs: (int) Number of parallel environments
+    :param obs_space: (spaces.Space) Observation space
+    :param action_space: (spaces.Space) Action space
+    :param gae_lam: (float): Generalized advantage estimation parameter
+    :param gamma: (float) discount factor for extrinsic rewards
+    :param int_gamma: (float) discount factor for intrinsic rewards
+    """
     def __init__(self, buffer_size, n_envs, obs_space, action_space, gae_lam = 0.95, gamma = 0.99, int_gamma = 0.99):
         super(IntrinsicStorage, self).__init__(buffer_size, n_envs, obs_space, action_space, gae_lam, gamma)
         self.int_gamma = int_gamma
@@ -365,7 +395,15 @@ class IntrinsicStorage(RolloutStorage):
 
 
 class PrioritizedReplayBuffer(BaseBuffer):
-    def __init__(self, buffer_size, alpha, n_envs, obs_space, action_space):
+    """
+    Buffer used to store past good experiences for self imitation learning.
+    :param buffer_size: (int) Max number of element in the buffer
+    :param n_envs: (int) Number of parallel environments
+    :param obs_space: (spaces.Space) Observation space
+    :param action_space: (spaces.Space) Action space
+    :param alpha: (float): weighting parameter
+    """
+    def __init__(self, buffer_size, n_envs, obs_space, action_space, alpha):
         super(PrioritizedReplayBuffer, self).__init__(buffer_size, obs_space, action_space, n_envs)
 
         self.observations =     []

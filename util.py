@@ -1,3 +1,4 @@
+# Taken from https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/running_mean_std.py
 import numpy as np
 import torch.nn as nn
 import torch
@@ -17,6 +18,10 @@ class RunningMeanStd(object):
         self.count = epsilon
 
     def update(self, arr):
+        """
+        Updates normalization parameters
+        :param arr: (np.ndarray) observation matrix
+        """
         batch_mean = np.mean(arr, axis=0)
         batch_var = np.var(arr, axis=0)
         batch_count = arr.shape[0]
@@ -38,7 +43,12 @@ class RunningMeanStd(object):
         self.var = new_var
         self.count = new_count
 
+
 class ActionConverter():
+    """
+    Class used to integrate discrete and continuous action spaces more easily
+    :param action_space: (gym.action_space) action space
+    """
     def __init__(self, action_space):
         self.action_type = action_space.__class__.__name__
         if self.action_type == "Discrete":
@@ -49,6 +59,9 @@ class ActionConverter():
             self.action_output = self.num_actions
 
     def get_loss(self):
+        """
+        Get loss used for inverse dynamics based on action type
+        """
         if self.action_type == "Discrete":
             loss = nn.CrossEntropyLoss()
         elif self.action_type == "Box":
@@ -56,6 +69,9 @@ class ActionConverter():
         return loss
 
     def action(self, action):
+        """
+        Converts action to the correct type based on action type
+        """
         if self.action_type == "Discrete":
             return action.squeeze().long()
         elif self.action_type == "Box":

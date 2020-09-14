@@ -1,3 +1,6 @@
+# Code taken from https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/logger.py
+# Changed configuration to suit the current project
+
 import csv
 import logging
 import sys
@@ -20,7 +23,6 @@ class CSVOutputFormat():
 
     def write(self, key_values):
         # Add our current row to the history
-
         for key in sorted(key_values.keys()):
             if key.find('/') > 0:
                 key_values[key.split('/')[1]] = key_values[key]
@@ -208,6 +210,13 @@ def record(key, value):
     Logger.CURRENT.record(key, value)
 
 def configure(algorithm, environment, log_to_file = False, folder = None):
+    """
+    Configure the logger by specifying the location and output format
+    :param algorithm: (str) name of algorithm
+    :param environment: (str) name of environment
+    :param log_to_file: (bool) logging to file parameter
+    :param folder: (str) name of log directory
+    """
 
     if folder is None:
         folder = "./logs"

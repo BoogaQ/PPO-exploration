@@ -1,3 +1,8 @@
+# Code inspired by:
+# https://github.com/uvipen/Street-fighter-A3C-ICM-pytorch
+# https://github.com/adik993/ppo-pytorch
+# https://github.com/DLR-RM/stable-baselines3
+# https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,10 +11,6 @@ import torch.optim as optim
 
 import numpy as np
 
-# https://github.com/uvipen/Street-fighter-A3C-ICM-pytorch
-# https://github.com/adik993/ppo-pytorch
-# https://github.com/DLR-RM/stable-baselines3
-# https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail
 
 class Policy(nn.Module):
     def __init__(self, env, hidden_size, intrinsic_model = False):
