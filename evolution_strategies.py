@@ -53,11 +53,8 @@ class FeedForwardNetwork(object):
         """
         out = np.expand_dims(inp.flatten(), 0)
         for i in range(len(self.weights)-1):
-            try:
-                out = np.dot(out, self.weights[i])
-                out = np.arctan(out)
-            except:
-                continue
+            out = np.dot(out, self.weights[i])
+            out = np.arctan(out)
 
         out = np.dot(out, self.weights[-1])
         out = self.get_action(out.astype(float))
